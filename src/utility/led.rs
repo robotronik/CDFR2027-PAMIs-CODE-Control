@@ -16,10 +16,12 @@ pub struct LedTask;
 
 impl LedTask {
     pub fn spawn(spawner: &Spawner, led: Output<'static>, interval_ms: u64) {
-        // We panic here if we run out of spawn tokens. Theoretically, this should never happen
-        // as we should only ever create each task once in our architecture.
-        // However, it might be worth handling this differently, should the need to spawn
-        // multiple tasks arise.
+        /*
+         * We panic here if we run out of spawn tokens. Theoretically, this should never happen
+         * as we should only ever create each task once in our architecture.
+         * However, it might be worth handling this differently, should the need to spawn
+         * multiple tasks arise.
+         */
         let token = run_led(led, interval_ms).expect("Failed to create LedTask (token exhaustion)");
         spawner.spawn(token);
     }
