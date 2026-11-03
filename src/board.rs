@@ -1,6 +1,6 @@
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{AnyPin, Input, InputConfig, Level, Output, OutputConfig, Pin, Pull};
-use esp_hal::peripherals::{ADC1, I2C0, LEDC, SPI2, UART0, GPIO1};
+use esp_hal::peripherals::{ADC1, CPU_CTRL, FROM_CPU_INTR1, I2C0, LEDC, SPI2, UART0, GPIO1};
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 
@@ -38,6 +38,8 @@ pub struct BoardPeripherals {
     pub uart0: UART0<'static>,
     pub adc1: ADC1<'static>,
     pub ledc: LEDC<'static>,
+    pub cpu_ctrl: CPU_CTRL<'static>,
+    pub intr1: FROM_CPU_INTR1<'static>,
 }
 
 // Complete board hardware configuration and pin definitions
@@ -145,6 +147,8 @@ impl Board {
             uart0: peripherals.UART0,
             adc1: peripherals.ADC1,
             ledc: peripherals.LEDC,
+            cpu_ctrl: peripherals.CPU_CTRL,
+            intr1: peripherals.FROM_CPU_INTR1,
         };
 
         println!("Board config done");
