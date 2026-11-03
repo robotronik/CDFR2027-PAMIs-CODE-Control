@@ -20,7 +20,7 @@ impl LedTask {
         // as we should only ever create each task once in our architecture.
         // However, it might be worth handling this differently, should the need to spawn
         // multiple tasks arise.
-        let token = run_led(led, interval_ms).expect("Failed to create LedTask (exhaustion)");
+        let token = run_led(led, interval_ms).expect("Failed to create LedTask (token exhaustion)");
         spawner.spawn(token);
     }
 }

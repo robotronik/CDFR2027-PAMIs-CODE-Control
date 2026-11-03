@@ -9,7 +9,6 @@
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use esp_println::println;
 
 mod utility;
 use utility::LedTask;
@@ -62,8 +61,7 @@ async fn main(spawner: Spawner) -> ! {
     LedTask::spawn(&spawner, board.status_led, 500);
 
     loop {
-        println!("Main loop tick");
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after(Duration::from_secs(3600)).await;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.2.2/examples
