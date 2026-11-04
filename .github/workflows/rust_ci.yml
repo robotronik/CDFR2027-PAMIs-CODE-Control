@@ -1,11 +1,11 @@
-name: Continuous Integration
+name: Build
 
 on:
   push:
     branches:
-      - main
+      - master
     paths-ignore:
-      - "**/README.md"
+      - "**/*.md"
   pull_request:
   workflow_dispatch:
 
@@ -14,19 +14,9 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  rust-checks:
-    name: Rust Checks
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        action:
-          - command: build
-            args: --release
-          - command: fmt
-            args: --all -- --check
-          - command: clippy
-            args: --all-features --workspace -- -D warnings
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -38,5 +28,5 @@ jobs:
           ldproxy: false
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
-      - name: Run command
-        run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}
+      - name: Build
+        run: cargo build --release

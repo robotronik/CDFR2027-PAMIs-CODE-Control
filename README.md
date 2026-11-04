@@ -1,5 +1,10 @@
 # PAMI Control Firmware (CDFR 2027)
 
+[![Build](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/actions/workflows/rust_ci.yml/badge.svg?branch=master)](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/actions/workflows/rust_ci.yml)
+![Rust](https://img.shields.io/badge/Rust-no__std-orange?logo=rust)
+![Target](https://img.shields.io/badge/target-ESP32--S3-blue?logo=espressif)
+![esp-hal](https://img.shields.io/badge/esp--hal-1.2-lightgrey)
+
 Low-level motion and actuation firmware for the autonomous PAMI robots participating in the **Coupe de France de Robotique 2027 (Eurobot)**.
 
 Built with **Embedded Rust**, [`esp-hal`](https://github.com/esp-rs/esp-hal), and the **Embassy** async executor on the **ESP32-S3** microcontroller (Xtensa architecture).
