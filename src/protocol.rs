@@ -7,12 +7,12 @@ use embassy_sync::watch::Watch;
 pub enum MotionCommand {
     Stop,
     Velocity { vx: f32, vy: f32, omega: f32 },
-    TargetPose { x: f32, y: f32, theta: f32 },
+    TargetPos { x: f32, y: f32, theta: f32 },
 }
 
 // Current robot position telemetry sent from Core 1 back to Core 0
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RobotPose {
+pub struct RobotPos {
     pub x: f32,
     pub y: f32,
     pub theta: f32,
@@ -26,5 +26,6 @@ pub struct RobotPose {
  * - MOTION_COMMAND_CHANNEL: FIFO queue delivering target motion commands to Core 1.
  * - ROBOT_POSE_WATCH: Single-slot watch channel publishing the freshest robot pose to Core 0.
  */
-pub static MOTION_COMMAND_CHANNEL: Channel<CriticalSectionRawMutex, MotionCommand, 4> = Channel::new();
-pub static ROBOT_POSE_WATCH: Watch<CriticalSectionRawMutex, RobotPose, 2> = Watch::new();
+pub static MOTION_COMMAND_CHANNEL: Channel<CriticalSectionRawMutex, MotionCommand, 4> =
+    Channel::new();
+pub static ROBOT_POS_CHANNEL: Watch<CriticalSectionRawMutex, RobotPos, 2> = Watch::new();
