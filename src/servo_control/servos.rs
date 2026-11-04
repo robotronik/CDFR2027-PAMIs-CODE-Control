@@ -10,10 +10,6 @@ async fn run_servo_control(
     mut servos: [Output<'static>; SERVO_COUNT],
     command_receiver: ServoCommandReceiver,
 ) {
-    /*
-     * Actuator servo control loop.
-     * Waits for servo commands and drives the 4 robot servos.
-     */
     loop {
         let command = command_receiver.receive().await;
         match command {

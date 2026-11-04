@@ -1,6 +1,4 @@
-/* BrainBoard communication module: SPI slave task that decodes requests
-* from the BrainBoard and routes them to the task that owns each command.
-*/
+// SPI slave link to the BrainBoard; routes each request to the task that owns it
 mod communication;
 mod protocol;
 

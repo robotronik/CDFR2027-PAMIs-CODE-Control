@@ -25,10 +25,6 @@ async fn run_motor_control(
     command_receiver: MotionCommandReceiver,
     pos_sender: RobotPosSender,
 ) {
-    /*
-     * Real-time drivetrain motor control loop pinned to Core 1.
-     * Consumes motion commands from Core 0 and publishes updated robot pos.
-     */
     let mut target_pos = RobotPos::default();
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
@@ -37,17 +33,15 @@ async fn run_motor_control(
     loop {
         ticker.next().await;
 
-        // Update current position
         let read_time = Instant::now();
         let current_pos = otos.read_pos();
 
-        // Check for newly arrived target commands from Core 0
         if let Ok(command) = command_receiver.try_receive() {
             println!("MotorControl (Core 1) received command: {:?}", command);
             match command {
-                /* These are placeholder commands, subject to change */
+                // Placeholder commands, subject to change
                 MotionCommand::Stop => {
-                    // Hold the current pose so a previous TargetPos is abandoned
+                    // Hold the current pose, abandoning any TargetPos
                     target_pos.x = current_pos.x;
                     target_pos.y = current_pos.y;
                     target_pos.theta = current_pos.theta;
@@ -68,7 +62,7 @@ async fn run_motor_control(
             }
         }
 
-        // Time elapsed since the previous position read, clamped against stalls
+        // Clamped so a stall doesn't produce a huge step
         let dt = (read_time - last_read_time).min(MAX_DT);
         last_read_time = read_time;
 
@@ -77,7 +71,6 @@ async fn run_motor_control(
 
         // TODO: trigger MCPWM generator here
 
-        // Publish latest robot position back to Core 0
         pos_sender.send(current_pos);
 
         println!("MotorControl (Core 1) tick");

@@ -1,7 +1,4 @@
-/* Motor control module: owns the drivetrain motors and the OTOS odometry
-* sensor, runs the control loop, and defines its own inbox (motion commands)
-* and outbox (robot position).
-*/
+// Drivetrain control loop on Core 1: owns the motors and the OTOS
 mod motor_commands;
 mod motors;
 mod otos;

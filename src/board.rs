@@ -4,13 +4,13 @@ use esp_hal::peripherals::{ADC1, CPU_CTRL, FROM_CPU_INTR1, I2C0, LEDC, SPI2, UAR
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 
-// Pins for a single DC motor channel driven by a DRV8871 H-bridge
+// One DRV8871 H-bridge channel
 pub struct DcMotorPins {
     pub in1: Output<'static>,
     pub in2: Output<'static>,
 }
 
-// 5-pin SPI interface on connector SPI1
+// Connector SPI1
 pub struct SpiPins {
     pub sclk: AnyPin<'static>,
     pub cs: AnyPin<'static>,
@@ -19,19 +19,19 @@ pub struct SpiPins {
     pub mosi: AnyPin<'static>,
 }
 
-// 2-pin I2C interface on connector I2C1
+// Connector I2C1
 pub struct I2cPins {
     pub sda: AnyPin<'static>,
     pub scl: AnyPin<'static>,
 }
 
-// 2-pin UART interface on connector UART1 (UART0)
+// Connector UART1
 pub struct UartPins {
     pub tx: AnyPin<'static>,
     pub rx: AnyPin<'static>,
 }
 
-// Major hardware peripheral singletons retained for driver initialization
+// Peripherals handed to the tasks that build their drivers
 pub struct BoardPeripherals {
     pub spi2: SPI2<'static>,
     pub i2c0: I2C0<'static>,
@@ -42,25 +42,23 @@ pub struct BoardPeripherals {
     pub intr1: FROM_CPU_INTR1<'static>,
 }
 
-// Complete board hardware configuration and pin definitions
 pub struct Board {
-    // Active-high status LED on GPIO16
+    // GPIO16, active high
     pub status_led: Output<'static>,
-    // Active-low boot button SW_BOOT1 on GPIO0 with internal pull-up
+    // SW_BOOT1 on GPIO0, active low, internal pull-up
     pub boot_button: Input<'static>,
-    // Battery level analog sensing pin on GPIO1 (ADC1_CH0, 30k/10k divider)
+    // ADC1_CH0, 30k/10k divider
     pub battery_level: GPIO1<'static>,
-    // 3 DC motors on DRV8871 drivers (Motor 1: IO4/IO5, Motor 2: IO6/IO7, Motor 3: IO8/IO9)
+    // IN1/IN2: IO4/IO5, IO6/IO7, IO8/IO9
     pub motors: [DcMotorPins; 3],
-    // 4 Servo PWM outputs (SERVO_1: IO47, SERVO_2: IO48, SERVO_3: IO14, SERVO_4: IO15)
+    // SERVO_1..4: IO47 (pin 24), IO48 (pin 25), IO14 (pin 22), IO15 (pin 8)
     pub servos: [Output<'static>; 4],
-    // 5 SPI bus pins (CLK: IO38, CS: IO39, Handshake: IO40, MISO: IO41, MOSI: IO42)
+    // CLK IO38, CS IO39, handshake IO40, MISO IO41, MOSI IO42 (pins 31-35)
     pub spi: SpiPins,
-    // I2C bus pins (SDA: IO17, SCL: IO18)
+    // SDA IO17 (pin 10), SCL IO18 (pin 11)
     pub i2c: I2cPins,
-    // UART0 bus pins (TX: IO43, RX: IO44)
+    // TX IO43 (pin 37), RX IO44 (pin 36)
     pub uart0: UartPins,
-    // Hardware peripheral blocks available for application tasks
     pub peripherals: BoardPeripherals,
 }
 
@@ -76,39 +74,27 @@ impl Board {
 
         let output_cfg = OutputConfig::default();
 
-        // Status LED on GPIO16 (Active High via 470R resistor to LED)
         let status_led = Output::new(peripherals.GPIO16, Level::Low, output_cfg);
 
-        // Boot Button on GPIO0 (Active Low with internal pull-up enabled)
         let boot_button = Input::new(peripherals.GPIO0, InputConfig::default().with_pull(Pull::Up));
 
-        // Battery level sense pin (GPIO1) retained for ADC1_CH0
         let battery_level = peripherals.GPIO1;
 
-        // 3 DC Motors (DRV8871 H-Bridges)
         let motors = [
-            // DC Motor 1: IN1 = GPIO4, IN2 = GPIO5
             DcMotorPins {
                 in1: Output::new(peripherals.GPIO4, Level::Low, output_cfg),
                 in2: Output::new(peripherals.GPIO5, Level::Low, output_cfg),
             },
-            // DC Motor 2: IN1 = GPIO6, IN2 = GPIO7
             DcMotorPins {
                 in1: Output::new(peripherals.GPIO6, Level::Low, output_cfg),
                 in2: Output::new(peripherals.GPIO7, Level::Low, output_cfg),
             },
-            // DC Motor 3: IN1 = GPIO8, IN2 = GPIO9
             DcMotorPins {
                 in1: Output::new(peripherals.GPIO8, Level::Low, output_cfg),
                 in2: Output::new(peripherals.GPIO9, Level::Low, output_cfg),
             },
         ];
 
-        /*
-         * 4 Servo PWM Outputs
-         * SERVO_1 on Pin 24 (IO47), SERVO_2 on Pin 25 (IO48)
-         * SERVO_3 on Pin 22 (IO14), SERVO_4 on Pin 8 (IO15)
-         */
         let servos = [
             Output::new(peripherals.GPIO47, Level::Low, output_cfg),
             Output::new(peripherals.GPIO48, Level::Low, output_cfg),
@@ -116,11 +102,6 @@ impl Board {
             Output::new(peripherals.GPIO15, Level::Low, output_cfg),
         ];
 
-        /*
-         * 5-Pin SPI Interface on Connector SPI1
-         * CLK: IO38 (Pin 31), CS: IO39 (Pin 32), Handshake: IO40 (Pin 33)
-         * MISO: IO41 (Pin 34), MOSI: IO42 (Pin 35)
-         */
         let spi = SpiPins {
             sclk: peripherals.GPIO38.degrade(),
             cs: peripherals.GPIO39.degrade(),
@@ -129,13 +110,11 @@ impl Board {
             mosi: peripherals.GPIO42.degrade(),
         };
 
-        // I2C Interface on Connector I2C1 (SDA: IO17 / Pin 10, SCL: IO18 / Pin 11)
         let i2c = I2cPins {
             sda: peripherals.GPIO17.degrade(),
             scl: peripherals.GPIO18.degrade(),
         };
 
-        // UART0 Interface on Connector UART1 (TX: IO43 / Pin 37, RX: IO44 / Pin 36)
         let uart0 = UartPins {
             tx: peripherals.GPIO43.degrade(),
             rx: peripherals.GPIO44.degrade(),

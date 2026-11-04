@@ -1,6 +1,4 @@
-/* Servo control module: owns the actuator servos and defines its own inbox
-* (servo commands).
-*/
+// Actuator servos
 mod servo_commands;
 mod servos;
 

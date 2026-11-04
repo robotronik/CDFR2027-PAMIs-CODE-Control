@@ -34,22 +34,15 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-/*
- * This creates a default app-descriptor required by the esp-idf bootloader.
- * For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
- */
+// App descriptor required by the esp-idf bootloader
 esp_bootloader_esp_idf::esp_app_desc!();
 
-// Core 1 dedicated stack and Embassy executor
 static STACK_CORE_1: ConstStaticCell<Stack<8192>> = ConstStaticCell::new(Stack::new());
 static EXECUTOR_CORE_1: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
-/*
- * Task channels, wired to their tasks in main()
- * - MOTION_COMMANDS: BrainComm (Core 0) -> MotorControl (Core 1)
- * - ROBOT_POS:       MotorControl (Core 1) -> BrainComm (Core 0)
- * - SERVO_COMMANDS:  BrainComm (Core 0) -> ServoControl (Core 0)
- */
+// MOTION_COMMANDS: BrainComm (Core 0) -> MotorControl (Core 1)
+// ROBOT_POS:       MotorControl (Core 1) -> BrainComm (Core 0)
+// SERVO_COMMANDS:  BrainComm (Core 0) -> ServoControl (Core 0)
 static MOTION_COMMANDS: MotionCommandChannel = MotionCommandChannel::new();
 static ROBOT_POS: RobotPosWatch = RobotPosWatch::new();
 static SERVO_COMMANDS: ServoCommandChannel = ServoCommandChannel::new();
@@ -62,11 +55,7 @@ static SERVO_COMMANDS: ServoCommandChannel = ServoCommandChannel::new();
 async fn main(spawner: Spawner) -> ! {
     let board = Board::init();
 
-    /*
-     * Launch Core 1 (APP_CPU) dedicated exclusively to MotorControlTask,
-     * which also owns the OTOS odometry sensor on I2C0.
-     * Core 1 runs its own Embassy executor with an independent 8KB stack.
-     */
+    // Core 1 runs only MotorControl, which owns the motors and the OTOS
     let motors = board.motors;
     let (otos_pins, i2c0) = (board.i2c, board.peripherals.i2c0);
     esp_rtos::start_second_core(
@@ -74,7 +63,6 @@ async fn main(spawner: Spawner) -> ! {
         board.peripherals.intr1,
         STACK_CORE_1.take(),
         move || {
-            // Built here so any HAL driver it creates binds its interrupt to Core 1
             let otos = Otos::new(otos_pins, i2c0);
             let executor = EXECUTOR_CORE_1.init(esp_rtos::embassy::Executor::new());
             executor.run(|spawner_core1| {
@@ -89,12 +77,7 @@ async fn main(spawner: Spawner) -> ! {
         },
     );
 
-    /*
-     * Core 0 (PRO_CPU) runs all remaining system, communication, and utility tasks:
-     * - Status LED, boot button, battery monitor
-     * - Actuator servos
-     * - High-level BrainBoard communication on SPI2
-     */
+    // Core 0 runs everything else
     LedTask::spawn(&spawner, board.status_led, 500);
     ButtonTask::spawn(&spawner, board.boot_button);
     BatteryTask::spawn(&spawner, board.battery_level, board.peripherals.adc1);

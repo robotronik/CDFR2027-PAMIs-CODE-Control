@@ -1,7 +1,4 @@
-/*
- * Driver for the Optical Tracking Odometry Sensor (OTOS) on I2C0.
- * Not a task: the MotorControl task owns it and reads it every control tick.
- */
+// OTOS odometry sensor on I2C0, polled by MotorControl every tick
 
 use super::robot_state::RobotPos;
 use crate::board::I2cPins;
@@ -13,12 +10,12 @@ pub struct Otos {
 }
 
 impl Otos {
-    // Must be called on Core 1: async esp-hal drivers bind their interrupt to the creating core
+    // Call on Core 1: async esp-hal drivers bind their interrupt to the creating core
     pub fn new(pins: I2cPins, i2c0: I2C0<'static>) -> Self {
         Self { pins, i2c0 }
     }
 
-    // Reads the current position and velocity from the sensor
+    // Position and velocity
     pub fn read_pos(&mut self) -> RobotPos {
         let _ = (&mut self.pins, &mut self.i2c0);
         // TODO: I2C read

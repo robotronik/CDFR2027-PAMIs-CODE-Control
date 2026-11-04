@@ -1,15 +1,10 @@
-/*
- * Robot state produced by the MotorControl task (Core 1), and the
- * single-slot watch types that publish the freshest value to other tasks.
- * The watch itself is declared in main.rs, which wires the tasks together.
- */
+// MotorControl outbox (latest value only). The watch instance lives in main.rs.
 
 use crate::math_utils::wrap_angle;
 use core::ops::Sub;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::watch::{self, Watch};
 
-// Current robot position, published by MotorControl (Core 1)
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RobotPos {
     pub x: f32,
@@ -20,7 +15,7 @@ pub struct RobotPos {
     pub omega: f32,
 }
 
-// Field-wise difference; theta is wrapped so the error takes the shortest rotation
+// Theta is wrapped so the error takes the shortest rotation
 impl Sub for RobotPos {
     type Output = RobotPos;
 
@@ -36,7 +31,6 @@ impl Sub for RobotPos {
     }
 }
 
-// Maximum number of RobotPos receivers
 pub const ROBOT_POS_RECEIVERS: usize = 2;
 
 pub type RobotPosWatch = Watch<CriticalSectionRawMutex, RobotPos, ROBOT_POS_RECEIVERS>;
