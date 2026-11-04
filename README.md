@@ -8,23 +8,32 @@ Built with **Embedded Rust**, [`esp-hal`](https://github.com/esp-rs/esp-hal), an
 
 ## Architecture & Subsystems
 
-The firmware execution is organized into modular Embassy async tasks running concurrently:
+The firmware is organized into Embassy async tasks. Core 1 runs only `MotorControlTask`; Core 0 runs everything else. Tasks own their hardware and talk only through `embassy_sync` channels declared in `main.rs`.
 
 ```
 src/
+├── main.rs                   # Entrypoint: spawns tasks on both cores, declares the inter-task channels
 ├── board.rs                  # Hardware initialization, pin definitions, and peripheral mapping
-├── communication.rs          # BrainCommTask: High-level SPI communication with BrainBoard
-├── motor_control.rs          # Locomotion root module
+├── math_utils.rs             # Pure maths helpers (angle wrapping)
+├── brain_comm.rs             # BrainBoard link root module
+├── brain_comm/
+│   ├── communication.rs      # BrainCommTask: SPI slave link, routes requests to the owning task
+│   └── protocol.rs           # Wire format encoding/decoding (pure functions, no I/O)
+├── motor_control.rs          # Locomotion root module (runs on Core 1)
 ├── motor_control/
-│   ├── motors.rs             # MotorControlTask: 3 DC motors via DRV8871 H-bridges (50Hz)
-│   └── otos.rs               # OtosTask: Optical Tracking Odometry Sensor over I2C0 (20Hz)
-├── servo_control.rs          # ServoControlTask: 4 RC servo actuator channels
+│   ├── motors.rs             # MotorControlTask: 3 DC motors via DRV8871 H-bridges (50Hz), owns the OTOS
+│   ├── otos.rs               # Otos: Optical Tracking Odometry Sensor driver over I2C0
+│   ├── motor_commands.rs     # MotionCommand inbox (BrainComm -> MotorControl)
+│   └── robot_state.rs        # RobotPos watch (MotorControl -> BrainComm)
+├── servo_control.rs          # Servo root module
+├── servo_control/
+│   ├── servos.rs             # ServoControlTask: 4 RC servo actuator channels
+│   └── servo_commands.rs     # ServoCommand inbox (BrainComm -> ServoControl)
 ├── utility.rs                # Housekeeping root module
-├── utility/
-│   ├── battery.rs            # BatteryTask: ADC battery voltage monitoring on GPIO1 (1Hz)
-│   ├── button.rs             # ButtonTask: Boot button monitoring on GPIO0
-│   └── led.rs                # LedTask: Heartbeat status LED on GPIO16
-└── main.rs                   # System entrypoint and Embassy task spawning
+└── utility/
+    ├── battery.rs            # BatteryTask: ADC battery voltage monitoring on GPIO1 (1Hz)
+    ├── button.rs             # ButtonTask: Boot button monitoring on GPIO0
+    └── led.rs                # LedTask: Heartbeat status LED on GPIO16
 ```
 
 ### Hardware Pin Mapping (ESP32-S3-WROOM-1)
@@ -168,10 +177,7 @@ Expected serial output on boot:
 ```text
 Board config start
 Board config done
-MotorControl task tick
-BrainComm task tick
-ServoControl task tick
-OTOS task tick
+MotorControl (Core 1) tick
 BatteryTask tick
 LED toggle call
 ```
