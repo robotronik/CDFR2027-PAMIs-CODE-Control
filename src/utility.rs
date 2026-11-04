@@ -1,6 +1,6 @@
-pub mod battery;
-pub mod button;
-pub mod led;
+mod battery;
+mod button;
+mod led;
 
 pub use battery::BatteryTask;
 pub use button::ButtonTask;
