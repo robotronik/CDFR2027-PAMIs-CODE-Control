@@ -48,5 +48,9 @@ There are no host tests yet.
 - Don't run `cargo fmt` unless asked. Some files are formatted by hand.
 - Commits go straight to `master`, message style `(type:) summary`
   (e.g. `(feat:)`, `(refactor:)`, `(cleanup:)`). Don't commit `.claude/`.
+- Prefer the codebase-memory-mcp graph over reading files to save tokens: `search_graph` /
+  `trace_path` for symbols and call chains, `get_code_snippet` for one function,
+  `get_architecture` for an overview. Read or grep files only for literals or when the graph
+  lacks coverage. Re-index with `index_repository` (mode `fast`) after large changes.
 - Known gaps, deferred on purpose: panic handler doesn't stop the motors, no Brain-silence
   watchdog, servos on plain GPIO (need LEDC PWM), motor control law and drivers are stubs.
