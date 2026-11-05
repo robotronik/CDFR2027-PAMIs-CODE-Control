@@ -63,105 +63,28 @@ src/
 
 ## Prerequisites
 
-### 1. ESP-IDF Installation
-
-ESP-IDF tools, libraries, and bootloader support are required for compiling and linking ESP32-S3 firmware.
-
-1. **Install system dependencies**:
-   - Ubuntu / Debian:
-     ```bash
-     sudo apt-get install git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
-     ```
-   - Arch Linux:
-     ```bash
-     sudo pacman -S git wget flex bison gperf python python-pip cmake ninja ccache dfu-util libusb
-     ```
-
-2. **Clone and install ESP-IDF**:
+1. Install Rust via [rustup](https://rustup.rs), then the Xtensa toolchain (the ESP32-S3 isn't supported by upstream Rust):
    ```bash
-   mkdir -p ~/esp
-   cd ~/esp
-   git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
-   cd ~/esp/esp-idf
-   ./install.sh esp32s3
-   ```
-
-3. **Export ESP-IDF environment**:
-   ```bash
-   . ~/esp/esp-idf/export.sh
-   ```
-
----
-
-### 2. Rust & Espressif Xtensa Toolchain
-
-Because the ESP32-S3 uses the Xtensa architecture, the customized Rust compiler with Xtensa target support is required.
-
-1. Install standard Rust via `rustup` if not already installed:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-2. Install `espup` (Espressif toolchain manager):
-   ```bash
-   cargo install espup
-   ```
-3. Install the Xtensa Rust toolchain:
-   ```bash
+   cargo install espup espflash
    espup install
    ```
-
----
-
-### 3. Flashing & Monitoring Tools
-
-Install `espflash` / `cargo-espflash`:
-```bash
-cargo install cargo-espflash espflash
-```
-
----
-
-### 4. Linux Serial Port Permissions
-
-Ensure your user account has access to serial devices (`/dev/ttyUSB*` or `/dev/ttyACM*`):
-```bash
-sudo usermod -a -G dialout $USER
-# On Arch / Fedora:
-# sudo usermod -a -G uucp $USER
-```
-*(Log out and log back in for group changes to take effect).*
-
----
-
-## Installation & Environment Setup
-
-Clone the repository and enter the project directory:
-```bash
-git clone <repository-url>
-cd CDFR2027-PAMIs-CODE-Control
-```
-
-Before compiling or flashing, export the Xtensa environment variables in your terminal session:
-```bash
-source $HOME/export-esp.sh
-```
-
-> **Tip**: You can add `source $HOME/export-esp.sh` to your shell profile (`~/.bashrc` or `~/.zshrc`) or use [direnv](https://direnv.net/) to source it automatically.
+2. Give your user access to the serial port (`/dev/ttyACM*`), then log out and back in:
+   ```bash
+   sudo usermod -a -G dialout $USER   # Arch / Fedora: uucp instead of dialout
+   ```
+3. Export the Xtensa environment in every new terminal (or add it to your shell profile / [direnv](https://direnv.net/)):
+   ```bash
+   source $HOME/export-esp.sh
+   ```
 
 ---
 
 ## Development Workflow
 
-### Check & Compilation
+### Build
 
-To run a fast compile-check:
 ```bash
-source $HOME/export-esp.sh
-cargo check
-```
-
-To compile a release binary:
-```bash
+cargo check            # fast compile-check
 cargo build --release
 ```
 
@@ -175,25 +98,15 @@ cargo hil
 
 ### Flashing to the ESP32-S3
 
-Connect the ESP32-S3 board via USB. 
-
-Run the application with automatic flashing and serial monitor:
+With the board on USB, flash and open the serial monitor:
 ```bash
 cargo run --release
 ```
 
-Alternatively, use `espflash` directly:
-```bash
-espflash flash --monitor target/xtensa-esp32s3-none-elf/release/pami-control
-```
-
 Expected serial output on boot:
 ```text
-Board config start
-Board config done
-MotorControl (Core 1) tick
-BatteryTask tick
-LED toggle call
+INFO - Board config start
+INFO - Board config done
 ```
 
-To exit the serial monitor, press `Ctrl + R` then `Ctrl + C` (or `Ctrl + ]`).
+To exit the serial monitor, press `Ctrl + C`.
