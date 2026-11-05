@@ -8,7 +8,6 @@
 #![deny(clippy::large_stack_frames)]
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
 use esp_hal::system::Stack;
 use static_cell::{ConstStaticCell, StaticCell};
 
@@ -99,7 +98,5 @@ async fn main(spawner: Spawner) -> ! {
         },
     );
 
-    loop {
-        Timer::after(Duration::from_secs(3600)).await;
-    }
+    core::future::pending().await
 }

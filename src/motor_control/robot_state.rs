@@ -31,7 +31,7 @@ impl Sub for RobotPos {
     }
 }
 
-pub const ROBOT_POS_RECEIVERS: usize = 2;
+pub const ROBOT_POS_RECEIVERS: usize = 1;
 
 pub type RobotPosWatch = Watch<CriticalSectionRawMutex, RobotPos, ROBOT_POS_RECEIVERS>;
 pub type RobotPosSender =

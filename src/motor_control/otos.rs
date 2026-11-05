@@ -15,7 +15,7 @@ impl Otos {
         Self { pins, i2c0 }
     }
 
-    // Position and velocity
+    // World frame
     pub fn read_pos(&mut self) -> RobotPos {
         let _ = (&mut self.pins, &mut self.i2c0);
         // TODO: I2C read

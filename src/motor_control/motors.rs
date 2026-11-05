@@ -4,11 +4,7 @@ use super::robot_state::{RobotPos, RobotPosSender};
 use crate::board::DcMotorPins;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Ticker};
-use esp_hal::mcpwm::{
-    McPwm, PeripheralClockConfig,
-    operator::PwmPinConfig,
-    timer::PwmWorkingMode,
-};
+use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
 use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
 use esp_println::println;
@@ -20,19 +16,16 @@ const PWM_FREQ: Rate = Rate::from_khz(20);
 // Timer counts 0..PWM_PERIOD-1, so a timestamp of PWM_PERIOD is 100 % duty
 const PWM_PERIOD: u16 = 1000;
 
-// Sign-magnitude drive of one DRV8871: returns (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
+// DRV8871 sign-magnitude: (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
 fn motor_duty(command: i16) -> (u16, u16) {
     let duty = command.unsigned_abs().min(PWM_PERIOD);
     if command >= 0 { (duty, 0) } else { (0, duty) }
 }
 
 // Returns one signed duty per motor, in -PWM_PERIOD..=PWM_PERIOD
-fn calculate_motor_commands(delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
-    let dt_s = dt.as_micros() as f32 * 1e-6;
-
-    let commands: [i16; 3] = [0; 3];
-
-    commands
+// delta_pos is in the world frame (OTOS): rotate by -theta before mapping to wheels
+fn calculate_motor_commands(_delta_pos: RobotPos, _dt: Duration) -> [i16; 3] {
+    [0; 3]
 }
 
 #[embassy_executor::task]
@@ -43,7 +36,6 @@ async fn run_motor_control(
     command_receiver: MotionCommandReceiver,
     pos_sender: RobotPosSender,
 ) {
-    /* MCPWM Configuration */
     let clock_cfg = PeripheralClockConfig::with_frequency(Rate::from_mhz(40)).unwrap();
     let mut mcpwm = McPwm::new(mcpwm0, clock_cfg);
     // All operators share timer0 so the three motors switch in phase
@@ -92,14 +84,20 @@ async fn run_motor_control(
             match command {
                 // Placeholder commands, subject to change
                 MotionCommand::Stop => {
-                    target_pos.x = current_pos.x;
-                    target_pos.y = current_pos.y;
-                    target_pos.theta = current_pos.theta;
+                    target_pos = RobotPos {
+                        x: current_pos.x,
+                        y: current_pos.y,
+                        theta: current_pos.theta,
+                        ..Default::default()
+                    }
                 }
                 MotionCommand::TargetPos { x, y, theta } => {
-                    target_pos.x = x;
-                    target_pos.y = y;
-                    target_pos.theta = theta;
+                    target_pos = RobotPos {
+                        x,
+                        y,
+                        theta,
+                        ..Default::default()
+                    }
                 }
             }
         }
@@ -108,8 +106,7 @@ async fn run_motor_control(
         let dt = (read_time - last_read_time).min(MAX_DT);
         last_read_time = read_time;
 
-        let delta_pos: RobotPos = target_pos - current_pos;
-        let commands: [i16; 3] = calculate_motor_commands(delta_pos, dt);
+        let commands = calculate_motor_commands(target_pos - current_pos, dt);
 
         let (in1, in2) = motor_duty(commands[0]);
         pwm0.0.set_timestamp(in1);
@@ -122,8 +119,6 @@ async fn run_motor_control(
         pwm2.1.set_timestamp(in2);
 
         pos_sender.send(current_pos);
-
-        println!("MotorControl (Core 1) tick");
     }
 }
 

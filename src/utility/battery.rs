@@ -5,10 +5,10 @@ use esp_println::println;
 
 #[embassy_executor::task]
 async fn run_battery_monitor(battery_pin: GPIO1<'static>, adc1: ADC1<'static>) {
-    // Samples the 30k/10k divider on GPIO1 (ADC1_CH0) at 1 Hz
+    // TODO: sample ADC1_CH0
     let _ = (&battery_pin, &adc1);
     loop {
-        Timer::after(Duration::from_millis(1000)).await;
+        Timer::after(Duration::from_secs(1)).await;
         println!("BatteryTask tick");
     }
 }
@@ -17,7 +17,8 @@ pub struct BatteryTask;
 
 impl BatteryTask {
     pub fn spawn(spawner: &Spawner, battery_pin: GPIO1<'static>, adc1: ADC1<'static>) {
-        let token = run_battery_monitor(battery_pin, adc1).expect("Failed to create BatteryTask (token exhaustion)");
+        let token = run_battery_monitor(battery_pin, adc1)
+            .expect("Failed to create BatteryTask (token exhaustion)");
         spawner.spawn(token);
     }
 }

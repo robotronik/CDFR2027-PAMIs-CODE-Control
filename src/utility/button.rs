@@ -6,7 +6,6 @@ use esp_println::println;
 #[embassy_executor::task]
 async fn run_button(button: Input<'static>) {
     // Intended for match start or mode switching
-    let _ = &button;
     loop {
         Timer::after(Duration::from_millis(100)).await;
         if button.is_low() {

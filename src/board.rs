@@ -1,6 +1,8 @@
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{AnyPin, Input, InputConfig, Level, Output, OutputConfig, Pin, Pull};
-use esp_hal::peripherals::{ADC1, CPU_CTRL, FROM_CPU_INTR1, I2C0, LEDC, MCPWM0, SPI2, UART0, GPIO1};
+use esp_hal::peripherals::{
+    ADC1, CPU_CTRL, FROM_CPU_INTR1, GPIO1, I2C0, LEDC, MCPWM0, SPI2, UART0,
+};
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 
@@ -77,7 +79,10 @@ impl Board {
 
         let status_led = Output::new(peripherals.GPIO16, Level::Low, output_cfg);
 
-        let boot_button = Input::new(peripherals.GPIO0, InputConfig::default().with_pull(Pull::Up));
+        let boot_button = Input::new(
+            peripherals.GPIO0,
+            InputConfig::default().with_pull(Pull::Up),
+        );
 
         let battery_level = peripherals.GPIO1;
 
