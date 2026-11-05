@@ -18,7 +18,8 @@ use pami_control::servo_control::{ServoCommandChannel, ServoControlTask};
 use pami_control::utility::{BatteryTask, ButtonTask, LedTask};
 
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    log::error!("{}", info);
     loop {}
 }
 
