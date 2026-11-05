@@ -41,18 +41,9 @@ async fn run_motor_control(
             match command {
                 // Placeholder commands, subject to change
                 MotionCommand::Stop => {
-                    // Hold the current pose, abandoning any TargetPos
                     target_pos.x = current_pos.x;
                     target_pos.y = current_pos.y;
                     target_pos.theta = current_pos.theta;
-                    target_pos.vx = 0.0;
-                    target_pos.vy = 0.0;
-                    target_pos.omega = 0.0;
-                }
-                MotionCommand::Velocity { vx, vy, omega } => {
-                    target_pos.vx = vx;
-                    target_pos.vy = vy;
-                    target_pos.omega = omega;
                 }
                 MotionCommand::TargetPos { x, y, theta } => {
                     target_pos.x = x;

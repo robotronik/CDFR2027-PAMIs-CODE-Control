@@ -6,7 +6,6 @@ use embassy_sync::channel::{self, Channel};
 #[derive(Clone, Copy, Debug)]
 pub enum MotionCommand {
     Stop,
-    Velocity { vx: f32, vy: f32, omega: f32 },
     TargetPos { x: f32, y: f32, theta: f32 },
 }
 
