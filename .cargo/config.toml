@@ -12,6 +12,10 @@ hil = [
   "target.xtensa-esp32s3-none-elf.runner='probe-rs run --chip=esp32s3 --preverify --always-print-stacktrace --no-location'",
 ]
 
+[env]
+# Log filter read at build time, e.g. "info" or "info,pami_control::motor_control=debug"
+ESP_LOG = "info"
+
 [build]
 rustflags = [
   "-C", "link-arg=-nostartfiles",

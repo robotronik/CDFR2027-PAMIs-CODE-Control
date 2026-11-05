@@ -4,7 +4,7 @@ use esp_hal::peripherals::{
     ADC1, CPU_CTRL, FROM_CPU_INTR1, GPIO1, I2C0, LEDC, MCPWM0, SPI2, UART0,
 };
 use esp_hal::timer::timg::TimerGroup;
-use esp_println::println;
+use log::info;
 
 // One DRV8871 H-bridge channel
 pub struct DcMotorPins {
@@ -67,7 +67,7 @@ pub struct Board {
 
 impl Board {
     pub fn init() -> Self {
-        println!("Board config start");
+        info!("Board config start");
 
         let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
         let peripherals = esp_hal::init(config);
@@ -137,7 +137,7 @@ impl Board {
             intr1: peripherals.FROM_CPU_INTR1,
         };
 
-        println!("Board config done");
+        info!("Board config done");
 
         Self {
             status_led,

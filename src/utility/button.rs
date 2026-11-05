@@ -1,7 +1,7 @@
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::Input;
-use esp_println::println;
+use log::info;
 
 #[embassy_executor::task]
 async fn run_button(button: Input<'static>) {
@@ -9,7 +9,7 @@ async fn run_button(button: Input<'static>) {
     loop {
         Timer::after(Duration::from_millis(100)).await;
         if button.is_low() {
-            println!("Boot button pressed!");
+            info!("Boot button pressed!");
         }
     }
 }

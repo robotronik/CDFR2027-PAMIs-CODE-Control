@@ -7,7 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
 use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
-use esp_println::println;
+use log::debug;
 
 const CONTROL_PERIOD: Duration = Duration::from_millis(20);
 const MAX_DT: Duration = Duration::from_millis(50);
@@ -84,7 +84,7 @@ async fn run_motor_control(
         let current_pos = otos.read_pos();
 
         if let Ok(command) = command_receiver.try_receive() {
-            println!("MotorControl (Core 1) received command: {:?}", command);
+            debug!("MotorControl (Core 1) received command: {:?}", command);
             match command {
                 // Placeholder commands, subject to change
                 MotionCommand::Stop => {

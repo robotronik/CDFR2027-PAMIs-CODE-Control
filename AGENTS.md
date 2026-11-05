@@ -44,6 +44,8 @@ plus the firmware bin (`src/main.rs`) so tests can import modules.
   `Channel`/`Sender`/`Receiver` type aliases.
 - Each task is spawned through a `XxxTask::spawn(&spawner, ...)` wrapper.
 - Comments only where the code isn't self-explanatory, as single-line `//`.
+- Log with the `log` macros (`info!`, `warn!`, `debug!`...), not `println!`. The filter is
+  `ESP_LOG` in `.cargo/config.toml`, read at build time (e.g. `info,pami_control::motor_control=debug`).
 - Keep maths (angle wrapping, control law, protocol decoding) free of HAL types so it can
   be host-tested later.
 

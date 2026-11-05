@@ -41,6 +41,7 @@ static SERVO_COMMANDS: ServoCommandChannel = ServoCommandChannel::new();
 )]
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
+    esp_println::logger::init_logger_from_env();
     let board = Board::init();
 
     // Core 1 runs only MotorControl, which owns the motors and the OTOS

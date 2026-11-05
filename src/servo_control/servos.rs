@@ -1,7 +1,7 @@
 use super::servo_commands::{ServoCommand, ServoCommandReceiver};
 use embassy_executor::Spawner;
 use esp_hal::gpio::Output;
-use esp_println::println;
+use log::{info, warn};
 
 const SERVO_COUNT: usize = 4;
 
@@ -15,12 +15,12 @@ async fn run_servo_control(
         match command {
             ServoCommand::SetAngle { id, angle_deg } => {
                 let Some(servo) = servos.get_mut(id as usize) else {
-                    println!("ServoControl: ignoring command for unknown servo {}", id);
+                    warn!("ServoControl: ignoring command for unknown servo {}", id);
                     continue;
                 };
                 let _ = servo;
                 // TODO: drive servo PWM
-                println!("ServoControl: servo {} -> {:.1} deg", id, angle_deg);
+                info!("ServoControl: servo {} -> {:.1} deg", id, angle_deg);
             }
         }
     }

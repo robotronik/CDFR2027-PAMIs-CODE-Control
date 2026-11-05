@@ -24,6 +24,7 @@ mod tests {
     // Started like main.rs so hardware tests can be added to this suite
     #[init]
     fn init() {
+        rtt_target::rtt_init_log!();
         let peripherals = esp_hal::init(esp_hal::Config::default());
         let timg0 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
         esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
