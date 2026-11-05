@@ -13,7 +13,11 @@ cargo run                # flashes with espflash and opens the serial monitor
 ```
 
 Toolchain is `esp` (see `rust-toolchain.toml`), target `xtensa-esp32s3-none-elf`.
-There are no host tests yet.
+
+Tests run on the board with embedded-test: `cargo hil` (board on USB, needs probe-rs:
+`cargo install probe-rs-tools --locked`). Suites live in `tests/`, one `[[test]]` entry per file
+in `Cargo.toml`. CI only compiles them (`cargo test --no-run`). The crate is a lib (`src/lib.rs`)
+plus the firmware bin (`src/main.rs`) so tests can import modules.
 
 ## Architecture
 

@@ -18,6 +18,7 @@ The firmware is organized into Embassy async tasks. Core 1 runs only `MotorContr
 ```
 src/
 ├── main.rs                   # Entrypoint: spawns tasks on both cores, declares the inter-task channels
+├── lib.rs                    # Library root: exposes the modules to main.rs and tests/
 ├── board.rs                  # Hardware initialization, pin definitions, and peripheral mapping
 ├── math_utils.rs             # Pure maths helpers (angle wrapping)
 ├── brain_comm.rs             # BrainBoard link root module
@@ -162,6 +163,14 @@ cargo check
 To compile a release binary:
 ```bash
 cargo build --release
+```
+
+### Tests
+
+Tests run on the board itself ([embedded-test](https://github.com/probe-rs/embedded-test)) and live in `tests/`. With the board on USB:
+```bash
+cargo install probe-rs-tools --locked   # once
+cargo hil
 ```
 
 ### Flashing to the ESP32-S3

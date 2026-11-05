@@ -4,6 +4,14 @@ include = ["esp-config.toml"]
 [target.xtensa-esp32s3-none-elf]
 runner = "espflash flash --monitor --chip esp32s3"
 
+# On-device tests need probe-rs to read embedded-test results; `cargo run` keeps espflash
+[alias]
+hil = [
+  "test",
+  "--config",
+  "target.xtensa-esp32s3-none-elf.runner='probe-rs run --chip=esp32s3 --preverify --always-print-stacktrace --no-location'",
+]
+
 [build]
 rustflags = [
   "-C", "link-arg=-nostartfiles",

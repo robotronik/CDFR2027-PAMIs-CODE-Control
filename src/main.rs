@@ -11,22 +11,11 @@ use embassy_executor::Spawner;
 use esp_hal::system::Stack;
 use static_cell::{ConstStaticCell, StaticCell};
 
-mod board;
-use board::Board;
-
-mod math_utils;
-
-mod brain_comm;
-use brain_comm::{BrainCommLinks, BrainCommTask};
-
-mod motor_control;
-use motor_control::{MotionCommandChannel, MotorControlTask, Otos, RobotPosWatch};
-
-mod servo_control;
-use servo_control::{ServoCommandChannel, ServoControlTask};
-
-mod utility;
-use utility::{BatteryTask, ButtonTask, LedTask};
+use pami_control::board::Board;
+use pami_control::brain_comm::{BrainCommLinks, BrainCommTask};
+use pami_control::motor_control::{MotionCommandChannel, MotorControlTask, Otos, RobotPosWatch};
+use pami_control::servo_control::{ServoCommandChannel, ServoControlTask};
+use pami_control::utility::{BatteryTask, ButtonTask, LedTask};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {

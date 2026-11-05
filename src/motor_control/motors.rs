@@ -17,7 +17,7 @@ const PWM_FREQ: Rate = Rate::from_khz(20);
 const PWM_PERIOD: u16 = 1000;
 
 // DRV8871 sign-magnitude: (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
-fn motor_duty(command: i16) -> (u16, u16) {
+pub fn motor_duty(command: i16) -> (u16, u16) {
     let duty = command.unsigned_abs().min(PWM_PERIOD);
     if command >= 0 { (duty, 0) } else { (0, duty) }
 }

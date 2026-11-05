@@ -3,6 +3,7 @@ fn main() {
     check_xtensa_linker_available();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
+    println!("cargo:rustc-link-arg-tests=-Tembedded-test.x");
 }
 
 #[cfg(unix)]

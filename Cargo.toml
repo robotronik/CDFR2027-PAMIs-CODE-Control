@@ -7,6 +7,15 @@ version      = "0.1.0"
 [[bin]]
 name = "pami-control"
 path = "./src/main.rs"
+test = false
+
+[lib]
+test = false
+
+# On-device tests, run with `cargo hil` (see .cargo/config.toml)
+[[test]]
+name    = "math"
+harness = false
 
 [dependencies]
 esp-hal = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
@@ -22,6 +31,17 @@ embassy-sync     = "0.8.0"
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
 esp-println = { version = "0.18.0", features = ["esp32s3"] }
+
+# embedded-test's macro emits #[cfg(rust_analyzer)]
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rust_analyzer)'] }
+
+[dev-dependencies]
+embedded-test = { version = "0.7.1", features = [
+  "embassy-010",
+  "external-executor",
+  "xtensa-semihosting",
+] }
 
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
