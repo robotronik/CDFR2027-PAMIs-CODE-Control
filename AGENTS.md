@@ -45,7 +45,6 @@ There are no host tests yet.
 
 ## Working rules
 
-- Don't run `cargo fmt` unless asked. Some files are formatted by hand.
 - Commits go straight to `master`, message style `(type:) summary`
   (e.g. `(feat:)`, `(refactor:)`, `(cleanup:)`). Don't commit `.claude/`.
 - Prefer the codebase-memory-mcp graph over reading files to save tokens: `search_graph` /
