@@ -4,12 +4,29 @@ use super::robot_state::{RobotPos, RobotPosSender};
 use crate::board::DcMotorPins;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Ticker};
-use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
+use esp_hal::mcpwm::{
+    McPwm, PeripheralClockConfig,
+    operator::PwmPinConfig,
+    timer::PwmWorkingMode,
+};
+use esp_hal::peripherals::MCPWM0;
+use esp_hal::time::Rate;
 use esp_println::println;
 
 const CONTROL_PERIOD: Duration = Duration::from_millis(20);
 const MAX_DT: Duration = Duration::from_millis(50);
 
+const PWM_FREQ: Rate = Rate::from_khz(20);
+// Timer counts 0..PWM_PERIOD-1, so a timestamp of PWM_PERIOD is 100 % duty
+const PWM_PERIOD: u16 = 1000;
+
+// Sign-magnitude drive of one DRV8871: returns (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
+fn motor_duty(command: i16) -> (u16, u16) {
+    let duty = command.unsigned_abs().min(PWM_PERIOD);
+    if command >= 0 { (duty, 0) } else { (0, duty) }
+}
+
+// Returns one signed duty per motor, in -PWM_PERIOD..=PWM_PERIOD
 fn calculate_motor_commands(delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
     let dt_s = dt.as_micros() as f32 * 1e-6;
 
@@ -20,11 +37,45 @@ fn calculate_motor_commands(delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
 
 #[embassy_executor::task]
 async fn run_motor_control(
-    mut motors: [DcMotorPins; 3],
+    motors: [DcMotorPins; 3],
+    mcpwm0: MCPWM0<'static>,
     mut otos: Otos,
     command_receiver: MotionCommandReceiver,
     pos_sender: RobotPosSender,
 ) {
+    /* MCPWM Configuration */
+    let clock_cfg = PeripheralClockConfig::with_frequency(Rate::from_mhz(40)).unwrap();
+    let mut mcpwm = McPwm::new(mcpwm0, clock_cfg);
+    // All operators share timer0 so the three motors switch in phase
+    mcpwm.operator0.set_timer(&mcpwm.timer0);
+    mcpwm.operator1.set_timer(&mcpwm.timer0);
+    mcpwm.operator2.set_timer(&mcpwm.timer0);
+
+    let [m0, m1, m2] = motors;
+    let mut pwm0 = mcpwm.operator0.with_pins(
+        m0.in1,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+        m0.in2,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+    );
+    let mut pwm1 = mcpwm.operator1.with_pins(
+        m1.in1,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+        m1.in2,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+    );
+    let mut pwm2 = mcpwm.operator2.with_pins(
+        m2.in1,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+        m2.in2,
+        PwmPinConfig::UP_ACTIVE_HIGH,
+    );
+
+    let timer_cfg = clock_cfg
+        .timer_clock_with_frequency(PWM_PERIOD - 1, PwmWorkingMode::Increase, PWM_FREQ)
+        .unwrap();
+    mcpwm.timer0.start(timer_cfg);
+
     let mut target_pos = RobotPos::default();
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
@@ -60,7 +111,15 @@ async fn run_motor_control(
         let delta_pos: RobotPos = target_pos - current_pos;
         let commands: [i16; 3] = calculate_motor_commands(delta_pos, dt);
 
-        // TODO: trigger MCPWM generator here
+        let (in1, in2) = motor_duty(commands[0]);
+        pwm0.0.set_timestamp(in1);
+        pwm0.1.set_timestamp(in2);
+        let (in1, in2) = motor_duty(commands[1]);
+        pwm1.0.set_timestamp(in1);
+        pwm1.1.set_timestamp(in2);
+        let (in1, in2) = motor_duty(commands[2]);
+        pwm2.0.set_timestamp(in1);
+        pwm2.1.set_timestamp(in2);
 
         pos_sender.send(current_pos);
 
@@ -74,11 +133,12 @@ impl MotorControlTask {
     pub fn spawn(
         spawner: &Spawner,
         motors: [DcMotorPins; 3],
+        mcpwm0: MCPWM0<'static>,
         otos: Otos,
         command_receiver: MotionCommandReceiver,
         pos_sender: RobotPosSender,
     ) {
-        let token = run_motor_control(motors, otos, command_receiver, pos_sender)
+        let token = run_motor_control(motors, mcpwm0, otos, command_receiver, pos_sender)
             .expect("Failed to create MotorControlTask (token exhaustion)");
         spawner.spawn(token);
     }

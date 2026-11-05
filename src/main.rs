@@ -57,6 +57,7 @@ async fn main(spawner: Spawner) -> ! {
 
     // Core 1 runs only MotorControl, which owns the motors and the OTOS
     let motors = board.motors;
+    let mcpwm0 = board.peripherals.mcpwm0;
     let (otos_pins, i2c0) = (board.i2c, board.peripherals.i2c0);
     esp_rtos::start_second_core(
         board.peripherals.cpu_ctrl,
@@ -69,6 +70,7 @@ async fn main(spawner: Spawner) -> ! {
                 MotorControlTask::spawn(
                     &spawner_core1,
                     motors,
+                    mcpwm0,
                     otos,
                     MOTION_COMMANDS.receiver(),
                     ROBOT_POS.sender(),
