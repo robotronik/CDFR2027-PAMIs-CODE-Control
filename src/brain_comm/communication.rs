@@ -33,7 +33,7 @@ struct SpiLink {
 }
 
 // One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it.
-// Stops the motors once if the Brain stays silent for BRAIN_TIMEOUT.
+// Sends Stop (brake and hold) once if the Brain stays silent for BRAIN_TIMEOUT.
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
 async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) -> (SpiLink, Frame) {
     let SpiLink { spi, rx, mut tx, mut handshake } = link;
@@ -49,7 +49,7 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) ->
     while !transfer.is_done() {
         // Retried each poll while the inbox is full
         if !stopped && armed_at.elapsed() > BRAIN_TIMEOUT && motion.try_send(MotionCommand::Stop).is_ok() {
-            warn!("BrainComm: Brain silent for {} ms, motors stopped", BRAIN_TIMEOUT.as_millis());
+            warn!("BrainComm: Brain silent for {} ms, stopping and holding position", BRAIN_TIMEOUT.as_millis());
             stopped = true;
         }
         Timer::after_micros(100).await;

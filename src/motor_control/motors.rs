@@ -7,7 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
 use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
-use log::{debug, warn};
+use log::{debug, info, warn};
 
 const CONTROL_PERIOD: Duration = Duration::from_millis(20);
 const MAX_DT: Duration = Duration::from_millis(50);
@@ -87,6 +87,9 @@ async fn run_motor_control(
     otos.init().await;
 
     let mut target_pos = RobotPos::default();
+    // Stop needs the current pose, which is only known after the OTOS read
+    let mut stop_pending = false;
+    let mut otos_ok = true;
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
     let mut last_read_time = Instant::now();
@@ -94,38 +97,40 @@ async fn run_motor_control(
     loop {
         ticker.next().await;
 
+        // Drained before the OTOS read so commands keep flowing during a sensor outage; the last one wins
+        while let Ok(command) = command_receiver.try_receive() {
+            debug!("MotorControl (Core 1) received command: {:?}", command);
+            match command {
+                MotionCommand::Stop => stop_pending = true,
+                MotionCommand::TargetPos { x, y, theta } => {
+                    target_pos = RobotPos { x, y, theta, ..Default::default() };
+                    stop_pending = false;
+                }
+            }
+        }
+
         let read_time = Instant::now();
         let current_pos = match otos.read_pos().await {
             Ok(pos) => pos,
             Err(err) => {
                 // Steering on a stale position is worse than stopping for a tick
-                warn!("MotorControl: OTOS read failed ({:?}), motors stopped", err);
+                if otos_ok {
+                    warn!("MotorControl: OTOS read failed ({:?}), motors stopped", err);
+                    otos_ok = false;
+                }
                 set_duties([0; 3]);
                 continue;
             }
         };
+        if !otos_ok {
+            info!("MotorControl: OTOS reads recovered");
+            otos_ok = true;
+        }
 
-        if let Ok(command) = command_receiver.try_receive() {
-            debug!("MotorControl (Core 1) received command: {:?}", command);
-            match command {
-                // Placeholder commands, subject to change
-                MotionCommand::Stop => {
-                    target_pos = RobotPos {
-                        x: current_pos.x,
-                        y: current_pos.y,
-                        theta: current_pos.theta,
-                        ..Default::default()
-                    }
-                }
-                MotionCommand::TargetPos { x, y, theta } => {
-                    target_pos = RobotPos {
-                        x,
-                        y,
-                        theta,
-                        ..Default::default()
-                    }
-                }
-            }
+        // Brake, then hold the pose where the robot was when Stop arrived
+        if stop_pending {
+            target_pos = RobotPos { vx: 0.0, vy: 0.0, omega: 0.0, ..current_pos };
+            stop_pending = false;
         }
 
         // Clamped so a stall doesn't produce a huge step
