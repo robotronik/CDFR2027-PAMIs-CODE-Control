@@ -8,7 +8,8 @@
 #![deny(clippy::large_stack_frames)]
 
 use embassy_executor::Spawner;
-use esp_hal::system::Stack;
+use esp_hal::peripherals::CPU_CTRL;
+use esp_hal::system::{Cpu, CpuControl, Stack};
 use static_cell::{ConstStaticCell, StaticCell};
 
 use pami_control::board::Board;
@@ -20,7 +21,14 @@ use pami_control::utility::{BatteryLowWatch, BatteryTask, ButtonTask, LedTask};
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     Board::stop_motors_after_panic();
+    // Logged before parking: the parked core could be holding the logger's lock
     log::error!("{}", info);
+    // Park the other core so the Brain sees the handshake stop instead of a frozen robot
+    // SAFETY: CPU_CTRL was handed to start_second_core, which is done with it; we never park ourselves
+    let mut cpu_control = CpuControl::new(unsafe { CPU_CTRL::steal() });
+    for core in Cpu::other() {
+        unsafe { cpu_control.park_core(core) };
+    }
     loop {}
 }
 

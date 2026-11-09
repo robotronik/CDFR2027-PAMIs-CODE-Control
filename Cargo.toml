@@ -25,6 +25,10 @@ harness = false
 name    = "otos"
 harness = false
 
+[[test]]
+name    = "board"
+harness = false
+
 [dependencies]
 esp-hal = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
 
