@@ -11,7 +11,7 @@ mod tests {
     use embassy_sync::channel::Channel;
     use embassy_sync::watch::Watch;
     use pami_control::brain_comm::{
-        BATTERY_LOW_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
+        BATTERY_LOW_FLAG, ODOMETRY_NOT_READY_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
         handle,
     };
     use pami_control::motor_control::{
@@ -165,7 +165,7 @@ mod tests {
             theta: -0.5,
             ..Default::default()
         };
-        let f = encode_reply(Status::QueueFull, 9, &pos, false);
+        let f = encode_reply(Status::QueueFull, 0, 9, &pos);
         assert_eq!(&f[0..3], &[MAGIC, 5, 9]);
         assert_eq!(&f[3..7], &1.0f32.to_le_bytes());
         assert_eq!(&f[7..11], &2.0f32.to_le_bytes());
@@ -174,9 +174,10 @@ mod tests {
     }
 
     #[test]
-    fn encode_reply_sets_battery_low_flag() {
-        let f = encode_reply(Status::BadCrc, 1, &RobotPos::default(), true);
-        assert_eq!(f[1], BATTERY_LOW_FLAG | Status::BadCrc as u8);
+    fn encode_reply_ors_flags_into_status() {
+        let flags = BATTERY_LOW_FLAG | ODOMETRY_NOT_READY_FLAG;
+        let f = encode_reply(Status::BadCrc, flags, 1, &RobotPos::default());
+        assert_eq!(f[1], 0xC0 | Status::BadCrc as u8);
         assert_eq!(f[15], crc8(&f[..15]));
     }
 

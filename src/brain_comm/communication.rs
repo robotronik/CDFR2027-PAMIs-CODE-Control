@@ -1,4 +1,6 @@
-use super::protocol::{FRAME_LEN, Frame, Request, Status, decode, encode_reply};
+use super::protocol::{
+    BATTERY_LOW_FLAG, FRAME_LEN, Frame, ODOMETRY_NOT_READY_FLAG, Request, Status, decode, encode_reply,
+};
 use crate::board::SpiPins;
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
 use crate::servo_control::{ServoCommand, ServoCommandSender};
@@ -114,9 +116,13 @@ async fn run_brain_comm(
 
     let (mut seq, mut status) = (0, Status::Ack);
     loop {
-        let pos = links.robot_pos.try_get().unwrap_or_default();
-        let battery_low = links.battery_low.try_get().unwrap_or(false);
-        let reply = encode_reply(status, seq, &pos, battery_low);
+        // The pos watch stays empty until MotorControl's first OTOS read
+        let pos = links.robot_pos.try_get();
+        let mut flags = if pos.is_none() { ODOMETRY_NOT_READY_FLAG } else { 0 };
+        if links.battery_low.try_get() == Some(true) {
+            flags |= BATTERY_LOW_FLAG;
+        }
+        let reply = encode_reply(status, flags, seq, &pos.unwrap_or_default());
         let (next_link, request) = exchange(link, &reply, &links.motion).await;
         link = next_link;
         (seq, status) = handle(&request, &links);

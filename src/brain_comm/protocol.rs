@@ -72,13 +72,14 @@ fn read_f32(data: &[u8], at: usize) -> Result<f32, Status> {
     if value.is_finite() { Ok(value) } else { Err(Status::BadArgument) }
 }
 
-// Bit 7 of the reply status byte, set while the battery is low
+// Reply status byte: bits 0-5 Status code, bits 6-7 flags OR-ed in by the caller
+pub const ODOMETRY_NOT_READY_FLAG: u8 = 0x40;
 pub const BATTERY_LOW_FLAG: u8 = 0x80;
 
-pub fn encode_reply(status: Status, seq: u8, pos: &RobotPos, battery_low: bool) -> Frame {
+pub fn encode_reply(status: Status, flags: u8, seq: u8, pos: &RobotPos) -> Frame {
     let mut frame = [0u8; FRAME_LEN];
     frame[0] = MAGIC;
-    frame[1] = status as u8 | if battery_low { BATTERY_LOW_FLAG } else { 0 };
+    frame[1] = status as u8 | flags;
     frame[2] = seq;
     frame[3..7].copy_from_slice(&pos.x.to_le_bytes());
     frame[7..11].copy_from_slice(&pos.y.to_le_bytes());
