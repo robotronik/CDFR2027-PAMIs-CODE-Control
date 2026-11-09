@@ -9,7 +9,7 @@
 
 use embassy_executor::Spawner;
 use esp_hal::peripherals::CPU_CTRL;
-use esp_hal::system::{Cpu, CpuControl, Stack};
+use esp_hal::system::{Cpu, CpuControl, Stack, software_reset};
 use static_cell::{ConstStaticCell, StaticCell};
 
 use pami_control::board::Board;
@@ -29,7 +29,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     for core in Cpu::other() {
         unsafe { cpu_control.park_core(core) };
     }
-    loop {}
+    // Warm restart: the next boot keeps the OTOS pose and flags the restart to the Brain
+    software_reset()
 }
 
 // App descriptor required by the esp-idf bootloader

@@ -3,7 +3,7 @@
 // https://github.com/robotronik/Optical_Tracking_Odometry_Sensor (Firmware/SFE/Inc/registers.h)
 
 use super::robot_state::RobotPos;
-use crate::board::I2cPins;
+use crate::board::{Board, I2cPins};
 use core::f32::consts::PI;
 use embassy_time::Timer;
 use esp_hal::Async;
@@ -61,6 +61,7 @@ impl Otos {
     }
 
     // Waits for the sensor, calibrates the IMU and zeroes the pose. Robot must stay still.
+    // After a panic restart the OTOS kept tracking on its own, so its pose is kept as is.
     // Mounting offset and scale registers keep their 0 defaults: sensor is centered, uncalibrated.
     pub async fn init(&mut self) {
         loop {
@@ -70,6 +71,10 @@ impl Otos {
                 Err(err) => warn!("OTOS: not responding ({:?}), retrying", err),
             }
             Timer::after_millis(500).await;
+        }
+        if Board::restarted_after_panic() {
+            info!("OTOS: restarted after a panic, keeping the current pose");
+            return;
         }
 
         while let Err(err) = self.calibrate_and_reset().await {

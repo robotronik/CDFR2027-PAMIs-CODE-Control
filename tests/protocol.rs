@@ -11,7 +11,7 @@ mod tests {
     use embassy_sync::channel::Channel;
     use embassy_sync::watch::Watch;
     use pami_control::brain_comm::{
-        BATTERY_LOW_FLAG, ODOMETRY_NOT_READY_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
+        BATTERY_LOW_FLAG, ODOMETRY_NOT_READY_FLAG, RESTARTED_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
         handle,
     };
     use pami_control::motor_control::{
@@ -169,9 +169,10 @@ mod tests {
 
     #[test]
     fn encode_reply_ors_flags_into_status() {
-        let flags = BATTERY_LOW_FLAG | ODOMETRY_NOT_READY_FLAG;
-        let f = encode_reply(Status::BadCrc, flags, 1, &RobotPos::default());
-        assert_eq!(f[1], 0xC0 | Status::BadCrc as u8);
+        let flags = BATTERY_LOW_FLAG | ODOMETRY_NOT_READY_FLAG | RESTARTED_FLAG;
+        let f = encode_reply(Status::QueueFull, flags, 1, &RobotPos::default());
+        assert_eq!(f[1], 0xE0 | Status::QueueFull as u8);
+        assert_eq!(f[1] & 0x1F, Status::QueueFull as u8);
         assert_eq!(f[15], crc8(&f[..15]));
     }
 

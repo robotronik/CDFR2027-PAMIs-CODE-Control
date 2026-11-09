@@ -4,6 +4,8 @@ use esp_hal::peripherals::{
     ADC1, CPU_CTRL, DMA_CH0, FROM_CPU_INTR1, GPIO1, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9,
     I2C0, LEDC, MCPWM0, SPI2, UART0,
 };
+use esp_hal::rtc_cntl::SocResetReason;
+use esp_hal::system::reset_reason;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
 
@@ -69,7 +71,7 @@ pub struct Board {
 
 impl Board {
     pub fn init() -> Self {
-        info!("Board config start");
+        info!("Board config start (reset reason: {:?})", reset_reason());
 
         let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
         let peripherals = esp_hal::init(config);
@@ -153,6 +155,11 @@ impl Board {
             uart0,
             peripherals: board_peripherals,
         }
+    }
+
+    // The panic handler is the only caller of software_reset, so a software reset means we panicked
+    pub fn restarted_after_panic() -> bool {
+        reset_reason() == Some(SocResetReason::CoreSw)
     }
 
     // Panic path only: takes the motor pins back from MCPWM and drives them low, so the H-bridges coast

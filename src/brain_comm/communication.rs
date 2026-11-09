@@ -1,7 +1,7 @@
 use super::protocol::{
-    BATTERY_LOW_FLAG, FRAME_LEN, Frame, ODOMETRY_NOT_READY_FLAG, Request, Status, decode, encode_reply,
+    BATTERY_LOW_FLAG, FRAME_LEN, Frame, ODOMETRY_NOT_READY_FLAG, RESTARTED_FLAG, Request, Status, decode, encode_reply,
 };
-use crate::board::SpiPins;
+use crate::board::{Board, SpiPins};
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
 use crate::servo_control::{ServoCommand, ServoCommandSender};
 use crate::utility::BatteryLowReceiver;
@@ -116,6 +116,8 @@ async fn run_brain_comm(
     };
 
     let (mut seq, mut status) = (0, Status::Ack);
+    // Cleared once a valid frame shows the Brain clocked a reply carrying it
+    let mut restarted = Board::restarted_after_panic();
     loop {
         // The pos watch stays empty until MotorControl's first OTOS read
         let pos = links.robot_pos.try_get();
@@ -123,10 +125,14 @@ async fn run_brain_comm(
         if links.battery_low.try_get() == Some(true) {
             flags |= BATTERY_LOW_FLAG;
         }
+        if restarted {
+            flags |= RESTARTED_FLAG;
+        }
         let reply = encode_reply(status, flags, seq, &pos.unwrap_or_default());
         let (next_link, request) = exchange(link, &reply, &links.motion).await;
         link = next_link;
         (seq, status) = handle(&request, &links);
+        restarted &= matches!(status, Status::BadMagic | Status::BadCrc);
     }
 }
 

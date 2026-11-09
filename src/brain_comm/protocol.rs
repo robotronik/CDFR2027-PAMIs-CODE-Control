@@ -68,7 +68,8 @@ fn read_f32(data: &[u8], at: usize) -> Result<f32, Status> {
     if value.is_finite() { Ok(value) } else { Err(Status::BadArgument) }
 }
 
-// Reply status byte: bits 0-5 Status code, bits 6-7 flags OR-ed in by the caller
+// Reply status byte: bits 0-4 Status code, bits 5-7 flags OR-ed in by the caller
+pub const RESTARTED_FLAG: u8 = 0x20;
 pub const ODOMETRY_NOT_READY_FLAG: u8 = 0x40;
 pub const BATTERY_LOW_FLAG: u8 = 0x80;
 
