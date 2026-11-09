@@ -32,24 +32,28 @@ mod tests {
         esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
     }
 
+    // Angles already in [-pi, pi) come back unchanged
     #[test]
     fn wrap_angle_keeps_in_range_values() {
         assert_close(wrap_angle(0.0), 0.0);
         assert_close(wrap_angle(-0.5), -0.5);
     }
 
+    // Both ends of the range map to -pi, since the range is [-pi, pi)
     #[test]
     fn wrap_angle_maps_pi_to_minus_pi() {
         assert_close(wrap_angle(PI), -PI);
         assert_close(wrap_angle(-PI), -PI);
     }
 
+    // Extra full turns are removed, in both directions
     #[test]
     fn wrap_angle_removes_full_turns() {
         assert_close(wrap_angle(TAU + 0.5), 0.5);
         assert_close(wrap_angle(-TAU - 0.5), -0.5);
     }
 
+    // Pose difference: x/y/velocities subtract plainly, theta takes the short way across ±pi (6 - 2pi, not 6)
     #[test]
     fn robot_pos_sub_takes_shortest_rotation() {
         let a = RobotPos {
@@ -77,6 +81,7 @@ mod tests {
         assert_close(d.omega, 1.0);
     }
 
+    // Positive speed drives IN1, negative drives IN2, zero leaves both at 0
     #[test]
     fn motor_duty_drives_one_input_by_sign() {
         assert_eq!(motor_duty(0), (0, 0));
@@ -84,12 +89,14 @@ mod tests {
         assert_eq!(motor_duty(-500), (0, 500));
     }
 
+    // Out-of-range speeds clamp to full duty (1000), including i16::MIN without overflow
     #[test]
     fn motor_duty_clamps_to_full_duty() {
         assert_eq!(motor_duty(2000), (1000, 0));
         assert_eq!(motor_duty(i16::MIN), (0, 1000));
     }
 
+    // 0/90/180° give 500/1500/2500 us pulses, angles above 180° clamp to 180°
     #[test]
     fn servo_duty_maps_angle_to_pulse_and_clamps() {
         // 14-bit duty over a 20 ms period: 500 us -> 409, 1500 us -> 1228, 2500 us -> 2048
@@ -99,6 +106,7 @@ mod tests {
         assert_eq!(servo_duty(200), servo_duty(180));
     }
 
+    // Goes low below 7000 mV, only recovers at 7200 mV or more
     #[test]
     fn battery_low_has_hysteresis() {
         assert!(!battery_low(false, 7000));

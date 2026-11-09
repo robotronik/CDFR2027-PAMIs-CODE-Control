@@ -61,17 +61,20 @@ mod tests {
         esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
     }
 
+    // CRC-8/SMBUS standard check value: "123456789" gives 0xF4
     #[test]
     fn crc8_check_value() {
         assert_eq!(crc8(b"123456789"), 0xF4);
     }
 
+    // Nop and Stop frames decode to their request, data bytes ignored
     #[test]
     fn decode_nop_and_stop() {
         assert_eq!(decode(&frame(0x00, 7, &[])), Ok(Request::Nop));
         assert_eq!(decode(&frame(0x01, 8, &[])), Ok(Request::Stop));
     }
 
+    // TargetPos decodes three little-endian f32s as x, y, theta
     #[test]
     fn decode_target_pos() {
         assert_eq!(
@@ -84,6 +87,7 @@ mod tests {
         );
     }
 
+    // SetServo decodes id and angle, including the edge values id 0 and 180°
     #[test]
     fn decode_set_servo() {
         assert_eq!(
@@ -102,12 +106,14 @@ mod tests {
         );
     }
 
+    // All-zero and all-0xFF frames (idle or floating bus) give BadMagic
     #[test]
     fn decode_rejects_garbage() {
         assert_eq!(decode(&[0x00; FRAME_LEN]), Err(Status::BadMagic));
         assert_eq!(decode(&[0xFF; FRAME_LEN]), Err(Status::BadMagic));
     }
 
+    // A corrupted CRC gives BadCrc, and the reply still echoes the frame's seq
     #[test]
     fn handle_rejects_bad_crc_but_keeps_seq() {
         let mut f = frame(0x01, 42, &[]);
@@ -115,20 +121,22 @@ mod tests {
         assert_eq!(handle(&f, &links()), (42, Status::BadCrc));
     }
 
+    // Several errors at once report only the first one checked (magic)
     #[test]
     fn decode_reports_first_error_only() {
-        // Bad magic, bad opcode and bad CRC at once: magic is checked first
         let mut f = frame(0x7F, 0, &[]);
         f[0] = 0x00;
         f[15] ^= 0xFF;
         assert_eq!(decode(&f), Err(Status::BadMagic));
     }
 
+    // An opcode not in the table gives UnknownOpcode
     #[test]
     fn decode_rejects_unknown_opcode() {
         assert_eq!(decode(&frame(0x7F, 0, &[])), Err(Status::UnknownOpcode));
     }
 
+    // NaN/infinite floats, angle 181° and servo id 4 all give BadArgument
     #[test]
     fn decode_rejects_bad_arguments() {
         for bad in [
@@ -151,6 +159,7 @@ mod tests {
         );
     }
 
+    // Reply bytes: magic, status, seq, x/y/theta as LE f32, then a valid CRC
     #[test]
     fn encode_reply_layout() {
         let pos = RobotPos {
@@ -167,6 +176,7 @@ mod tests {
         assert_eq!(f[15], crc8(&f[..15]));
     }
 
+    // Flags land in bits 5-7 of the status byte, the code stays readable with & 0x1F, CRC still valid
     #[test]
     fn encode_reply_ors_flags_into_status() {
         let flags = BATTERY_LOW_FLAG | ODOMETRY_NOT_READY_FLAG | RESTARTED_FLAG;
@@ -176,12 +186,14 @@ mod tests {
         assert_eq!(f[15], crc8(&f[..15]));
     }
 
+    // Nop is acknowledged and sends nothing to either task
     #[test]
     fn handle_nop_queues_nothing() {
         assert_eq!(handle(&frame(0x00, 3, &[]), &links()), (3, Status::Ack));
         assert!(MOTION.is_empty() && SERVO.is_empty());
     }
 
+    // Stop and TargetPos are acknowledged and reach the motion inbox only
     #[test]
     fn handle_routes_motion_commands() {
         let links = links();
@@ -203,6 +215,7 @@ mod tests {
         assert!(SERVO.is_empty());
     }
 
+    // SetServo is acknowledged and reaches the servo inbox only
     #[test]
     fn handle_routes_servo_commands() {
         assert_eq!(
@@ -219,6 +232,7 @@ mod tests {
         assert!(MOTION.is_empty());
     }
 
+    // An invalid frame is reported and nothing is queued
     #[test]
     fn handle_drops_invalid_requests() {
         let mut f = frame(0x01, 7, &[]);
@@ -227,6 +241,7 @@ mod tests {
         assert!(MOTION.is_empty());
     }
 
+    // A full motion inbox gives QueueFull, servo commands still go through
     #[test]
     fn handle_reports_full_inbox() {
         while !MOTION.is_full() {

@@ -26,6 +26,7 @@ mod tests {
         Board::init()
     }
 
+    // With PWM driving IN1 high, the panic stop pulls the pin low
     #[test]
     async fn stop_motors_after_panic_overrides_running_pwm(board: Board) {
         let [m0, ..] = board.motors;

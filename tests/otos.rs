@@ -30,12 +30,14 @@ mod tests {
         Board::init()
     }
 
+    // All-zero registers decode to a zero pose
     #[test]
     fn decode_pose_zero() {
         let pos = decode_pose(&[0; 12]);
         assert_eq!((pos.x, pos.y, pos.theta, pos.vx, pos.vy, pos.omega), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
+    // Most negative raw values decode to the sensor limits: -10 m, -pi, -5 m/s, -2000 °/s
     #[test]
     fn decode_pose_full_scale() {
         let pos = decode_pose(&raw([i16::MIN; 6]));
@@ -47,6 +49,7 @@ mod tests {
         assert_close(pos.omega, -2000.0 * PI / 180.0);
     }
 
+    // Mixed-sign values land in the right fields with the right units
     #[test]
     fn decode_pose_field_order_and_sign() {
         // 1 m, -0.5 m, +90°, 1 m/s, -1 m/s, -180 °/s
@@ -59,6 +62,7 @@ mod tests {
         assert!((pos.omega + PI).abs() < 1e-3);
     }
 
+    // Needs the OTOS plugged in: after init, a robot at rest reads (0, 0, 0) within 5 mm and ~1°
     #[test]
     #[timeout(10)]
     async fn otos_init_then_read_near_origin(board: Board) {
