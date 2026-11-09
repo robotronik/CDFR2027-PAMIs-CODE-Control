@@ -40,12 +40,8 @@ pub fn crc8(bytes: &[u8]) -> u8 {
     crc
 }
 
-// Returns the seq byte even on error, so the reply can still echo it
-pub fn decode(frame: &Frame) -> (u8, Result<Request, Status>) {
-    (frame[2], decode_request(frame))
-}
-
-fn decode_request(frame: &Frame) -> Result<Request, Status> {
+// Errors are checked in order and only the first is reported
+pub fn decode(frame: &Frame) -> Result<Request, Status> {
     if frame[0] != MAGIC {
         return Err(Status::BadMagic);
     }

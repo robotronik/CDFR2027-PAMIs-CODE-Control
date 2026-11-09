@@ -65,12 +65,13 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) ->
 
 // Decodes a request and forwards it to its task; returns the seq and status for the next reply
 pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
+    let seq = frame[2];
     let request = match decode(frame) {
-        (seq, Ok(request)) => {
+        Ok(request) => {
             debug!("BrainComm: seq {} {:?}", seq, request);
             request
         }
-        (seq, Err(err)) => {
+        Err(err) => {
             warn!("BrainComm: seq {} rejected: {:?}", seq, err);
             return (seq, err);
         }
@@ -83,13 +84,13 @@ pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
         }
         Request::SetServo { id, angle_deg } => links
             .servo
-            .try_send(ServoCommand::SetAngle { id, angle_deg: angle_deg as f32 })
+            .try_send(ServoCommand::SetAngle { id, angle_deg })
             .is_ok(),
     };
     if !sent {
         warn!("BrainComm: inbox full, dropping {:?}", request);
     }
-    (frame[2], if sent { Status::Ack } else { Status::QueueFull })
+    (seq, if sent { Status::Ack } else { Status::QueueFull })
 }
 
 #[embassy_executor::task]

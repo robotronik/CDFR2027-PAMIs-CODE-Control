@@ -1,16 +1,16 @@
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use esp_hal::gpio::Input;
 use log::info;
 
 #[embassy_executor::task]
-async fn run_button(button: Input<'static>) {
+async fn run_button(mut button: Input<'static>) {
     // Intended for match start or mode switching
     loop {
-        Timer::after(Duration::from_millis(100)).await;
-        if button.is_low() {
-            info!("Boot button pressed!");
-        }
+        button.wait_for_falling_edge().await;
+        info!("Boot button pressed!");
+        // Debounce: contact bounce would log one press several times
+        Timer::after_millis(50).await;
     }
 }
 

@@ -9,16 +9,16 @@ use esp_hal::time::Rate;
 use log::{debug, warn};
 
 pub const SERVO_COUNT: usize = 4;
-const PERIOD_US: f32 = 20_000.0;
-const DUTY_MAX: f32 = (1 << 14) as f32;
+const PERIOD_US: u32 = 20_000;
+const DUTY_MAX: u32 = 1 << 14;
 // shortcut: generic 500-2500 us range for 0-180°, calibrate per servo model once mounted
-const PULSE_MIN_US: f32 = 500.0;
-const PULSE_MAX_US: f32 = 2500.0;
+const PULSE_MIN_US: u32 = 500;
+const PULSE_MAX_US: u32 = 2500;
 
-// 14-bit LEDC duty for a 50 Hz servo pulse; out of range angles are clamped
-pub fn servo_duty(angle_deg: f32) -> u32 {
-    let pulse_us = PULSE_MIN_US + angle_deg.clamp(0.0, 180.0) / 180.0 * (PULSE_MAX_US - PULSE_MIN_US);
-    (pulse_us / PERIOD_US * DUTY_MAX) as u32
+// 14-bit LEDC duty for a 50 Hz servo pulse; angles above 180 are clamped
+pub fn servo_duty(angle_deg: u8) -> u32 {
+    let pulse_us = PULSE_MIN_US + angle_deg.min(180) as u32 * (PULSE_MAX_US - PULSE_MIN_US) / 180;
+    pulse_us * DUTY_MAX / PERIOD_US
 }
 
 #[embassy_executor::task]
@@ -62,7 +62,7 @@ async fn run_servo_control(
                     continue;
                 };
                 channel.set_duty_hw(servo_duty(angle_deg));
-                debug!("ServoControl: servo {} -> {:.1} deg", id, angle_deg);
+                debug!("ServoControl: servo {} -> {} deg", id, angle_deg);
             }
         }
     }

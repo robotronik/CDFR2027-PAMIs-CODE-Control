@@ -68,22 +68,19 @@ mod tests {
 
     #[test]
     fn decode_nop_and_stop() {
-        assert_eq!(decode(&frame(0x00, 7, &[])), (7, Ok(Request::Nop)));
-        assert_eq!(decode(&frame(0x01, 8, &[])), (8, Ok(Request::Stop)));
+        assert_eq!(decode(&frame(0x00, 7, &[])), Ok(Request::Nop));
+        assert_eq!(decode(&frame(0x01, 8, &[])), Ok(Request::Stop));
     }
 
     #[test]
     fn decode_target_pos() {
         assert_eq!(
             decode(&frame(0x02, 1, &f32s([100.0, -50.5, 1.5]))),
-            (
-                1,
-                Ok(Request::TargetPos {
-                    x: 100.0,
-                    y: -50.5,
-                    theta: 1.5
-                })
-            )
+            Ok(Request::TargetPos {
+                x: 100.0,
+                y: -50.5,
+                theta: 1.5
+            })
         );
     }
 
@@ -91,16 +88,13 @@ mod tests {
     fn decode_set_servo() {
         assert_eq!(
             decode(&frame(0x03, 2, &[3, 90])),
-            (
-                2,
-                Ok(Request::SetServo {
-                    id: 3,
-                    angle_deg: 90
-                })
-            )
+            Ok(Request::SetServo {
+                id: 3,
+                angle_deg: 90
+            })
         );
         assert_eq!(
-            decode(&frame(0x03, 2, &[0, 180])).1,
+            decode(&frame(0x03, 2, &[0, 180])),
             Ok(Request::SetServo {
                 id: 0,
                 angle_deg: 180
@@ -110,15 +104,15 @@ mod tests {
 
     #[test]
     fn decode_rejects_garbage() {
-        assert_eq!(decode(&[0x00; FRAME_LEN]).1, Err(Status::BadMagic));
-        assert_eq!(decode(&[0xFF; FRAME_LEN]).1, Err(Status::BadMagic));
+        assert_eq!(decode(&[0x00; FRAME_LEN]), Err(Status::BadMagic));
+        assert_eq!(decode(&[0xFF; FRAME_LEN]), Err(Status::BadMagic));
     }
 
     #[test]
-    fn decode_rejects_bad_crc_but_keeps_seq() {
+    fn handle_rejects_bad_crc_but_keeps_seq() {
         let mut f = frame(0x01, 42, &[]);
         f[15] ^= 0xFF;
-        assert_eq!(decode(&f), (42, Err(Status::BadCrc)));
+        assert_eq!(handle(&f, &links()), (42, Status::BadCrc));
     }
 
     #[test]
@@ -127,12 +121,12 @@ mod tests {
         let mut f = frame(0x7F, 0, &[]);
         f[0] = 0x00;
         f[15] ^= 0xFF;
-        assert_eq!(decode(&f).1, Err(Status::BadMagic));
+        assert_eq!(decode(&f), Err(Status::BadMagic));
     }
 
     #[test]
     fn decode_rejects_unknown_opcode() {
-        assert_eq!(decode(&frame(0x7F, 0, &[])).1, Err(Status::UnknownOpcode));
+        assert_eq!(decode(&frame(0x7F, 0, &[])), Err(Status::UnknownOpcode));
     }
 
     #[test]
@@ -143,16 +137,16 @@ mod tests {
             [0.0, 0.0, f32::NEG_INFINITY],
         ] {
             assert_eq!(
-                decode(&frame(0x02, 0, &f32s(bad))).1,
+                decode(&frame(0x02, 0, &f32s(bad))),
                 Err(Status::BadArgument)
             );
         }
         assert_eq!(
-            decode(&frame(0x03, 0, &[0, 181])).1,
+            decode(&frame(0x03, 0, &[0, 181])),
             Err(Status::BadArgument)
         );
         assert_eq!(
-            decode(&frame(0x03, 0, &[4, 90])).1,
+            decode(&frame(0x03, 0, &[4, 90])),
             Err(Status::BadArgument)
         );
     }
@@ -218,7 +212,7 @@ mod tests {
             SERVO.try_receive(),
             Ok(ServoCommand::SetAngle {
                 id: 2,
-                angle_deg: 45.0
+                angle_deg: 45
             })
         ));
         assert!(MOTION.is_empty());

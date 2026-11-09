@@ -5,7 +5,7 @@ use embassy_sync::channel::{self, Channel};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ServoCommand {
-    SetAngle { id: u8, angle_deg: f32 },
+    SetAngle { id: u8, angle_deg: u8 },
 }
 
 pub const SERVO_COMMAND_DEPTH: usize = 4;

@@ -93,11 +93,10 @@ mod tests {
     #[test]
     fn servo_duty_maps_angle_to_pulse_and_clamps() {
         // 14-bit duty over a 20 ms period: 500 us -> 409, 1500 us -> 1228, 2500 us -> 2048
-        assert_eq!(servo_duty(0.0), 409);
-        assert_eq!(servo_duty(90.0), 1228);
-        assert_eq!(servo_duty(180.0), 2048);
-        assert_eq!(servo_duty(-10.0), servo_duty(0.0));
-        assert_eq!(servo_duty(200.0), servo_duty(180.0));
+        assert_eq!(servo_duty(0), 409);
+        assert_eq!(servo_duty(90), 1228);
+        assert_eq!(servo_duty(180), 2048);
+        assert_eq!(servo_duty(200), servo_duty(180));
     }
 
     #[test]
