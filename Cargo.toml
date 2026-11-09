@@ -17,6 +17,10 @@ test = false
 name    = "math"
 harness = false
 
+[[test]]
+name    = "protocol"
+harness = false
+
 [dependencies]
 esp-hal = { version = "~1.2.2", features = ["esp32s3", "unstable"] }
 
