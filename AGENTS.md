@@ -32,8 +32,9 @@ plus the firmware bin (`src/main.rs`) so tests can import modules.
   - `SERVO_COMMANDS` (`Channel`): BrainComm -> ServoControl
   
   Use `CriticalSectionRawMutex` for anything crossing cores.
-- The BrainBoard is the SPI master. `brain_comm/protocol.rs` holds the wire format (pure
-  functions, no I/O). `brain_comm/communication.rs` runs the task and routes requests.
+- The BrainBoard is the SPI master. Wire format spec: `docs/brain_spi_protocol.md`.
+  `brain_comm/protocol.rs` encodes/decodes frames (pure functions, no I/O),
+  `brain_comm/communication.rs` runs the SPI exchange and routes requests in `handle`.
 - `board.rs` is the single source of truth for pin mapping and peripheral ownership.
 
 ## Code conventions

@@ -30,11 +30,8 @@ struct SpiLink {
 // One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
 async fn exchange(link: SpiLink, reply: &Frame) -> (SpiLink, Frame) {
-    let SpiLink { spi, mut rx, mut tx, mut handshake } = link;
-    tx.set_length(FRAME_LEN);
-    tx.as_mut_slice().copy_from_slice(reply);
-    rx.set_length(FRAME_LEN);
-
+    let SpiLink { spi, rx, mut tx, mut handshake } = link;
+    tx.fill(reply);
     let transfer = match spi.transfer(FRAME_LEN, rx, FRAME_LEN, tx) {
         Ok(transfer) => transfer,
         Err((err, ..)) => panic!("BrainComm: cannot arm SPI transfer: {:?}", err),
@@ -47,14 +44,24 @@ async fn exchange(link: SpiLink, reply: &Frame) -> (SpiLink, Frame) {
     let (spi, (rx, tx)) = transfer.wait();
     handshake.set_low();
 
-    let mut request = [0u8; FRAME_LEN];
-    request.copy_from_slice(&rx.as_slice()[..FRAME_LEN]);
+    let request = rx.as_slice()[..FRAME_LEN].try_into().unwrap();
     (SpiLink { spi, rx, tx, handshake }, request)
 }
 
-fn route(request: Request, links: &BrainCommLinks) -> Status {
+// Decodes a request and forwards it to its task; returns the seq and status for the next reply
+fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
+    let request = match decode(frame) {
+        (seq, Ok(request)) => {
+            debug!("BrainComm: seq {} {:?}", seq, request);
+            request
+        }
+        (seq, Err(err)) => {
+            warn!("BrainComm: seq {} rejected: {:?}", seq, err);
+            return (seq, err);
+        }
+    };
     let sent = match request {
-        Request::Nop => return Status::Ack,
+        Request::Nop => true,
         Request::Stop => links.motion.try_send(MotionCommand::Stop).is_ok(),
         Request::TargetPos { x, y, theta } => {
             links.motion.try_send(MotionCommand::TargetPos { x, y, theta }).is_ok()
@@ -64,12 +71,10 @@ fn route(request: Request, links: &BrainCommLinks) -> Status {
             .try_send(ServoCommand::SetAngle { id, angle_deg: angle_deg as f32 })
             .is_ok(),
     };
-    if sent {
-        Status::Ack
-    } else {
+    if !sent {
         warn!("BrainComm: inbox full, dropping {:?}", request);
-        Status::QueueFull
     }
+    (frame[2], if sent { Status::Ack } else { Status::QueueFull })
 }
 
 #[embassy_executor::task]
@@ -92,24 +97,12 @@ async fn run_brain_comm(
         handshake: Output::new(spi.handshake, Level::Low, OutputConfig::default()),
     };
 
-    // Status of the previous command, sent back with the next reply
-    let (mut status, mut seq) = (Status::Ack, 0);
+    let (mut seq, mut status) = (0, Status::Ack);
     loop {
         let pos = links.robot_pos.try_get().unwrap_or_default();
-        let request;
-        (link, request) = exchange(link, &encode_reply(status, seq, &pos)).await;
-        let result;
-        (seq, result) = decode(&request);
-        status = match result {
-            Ok(request) => {
-                debug!("BrainComm: seq {} {:?}", seq, request);
-                route(request, &links)
-            }
-            Err(err) => {
-                warn!("BrainComm: seq {} rejected: {:?}", seq, err);
-                err
-            }
-        };
+        let (next_link, request) = exchange(link, &encode_reply(status, seq, &pos)).await;
+        link = next_link;
+        (seq, status) = handle(&request, &links);
     }
 }
 

@@ -58,4 +58,4 @@ Check value: `crc8(b"123456789") == 0xF4`.
 ## Extending
 
 Add an opcode: new row above, new `Request` variant + decode arm in `src/brain_comm/protocol.rs`,
-new route arm in `src/brain_comm/communication.rs`. New failure: append a `Status` code.
+new arm in `handle` (`src/brain_comm/communication.rs`). New failure: append a `Status` code.
