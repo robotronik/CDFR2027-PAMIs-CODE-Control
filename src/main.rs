@@ -19,6 +19,7 @@ use pami_control::utility::{BatteryTask, ButtonTask, LedTask};
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
+    Board::stop_motors_after_panic();
     log::error!("{}", info);
     loop {}
 }
@@ -74,7 +75,12 @@ async fn main(spawner: Spawner) -> ! {
     ButtonTask::spawn(&spawner, board.boot_button);
     BatteryTask::spawn(&spawner, board.battery_level, board.peripherals.adc1);
 
-    ServoControlTask::spawn(&spawner, board.servos, SERVO_COMMANDS.receiver());
+    ServoControlTask::spawn(
+        &spawner,
+        board.servos,
+        board.peripherals.ledc,
+        SERVO_COMMANDS.receiver(),
+    );
 
     BrainCommTask::spawn(
         &spawner,

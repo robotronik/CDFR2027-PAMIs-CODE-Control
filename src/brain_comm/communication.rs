@@ -3,7 +3,7 @@ use crate::board::SpiPins;
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
 use crate::servo_control::{ServoCommand, ServoCommandSender};
 use embassy_executor::Spawner;
-use embassy_time::Timer;
+use embassy_time::{Duration, Instant, Timer};
 use esp_hal::Blocking;
 use esp_hal::dma::{DmaRxBuf, DmaTxBuf};
 use esp_hal::gpio::{Level, Output, OutputConfig};
@@ -20,6 +20,9 @@ pub struct BrainCommLinks {
     pub robot_pos: RobotPosReceiver,
 }
 
+// No complete frame from the Brain for this long stops the motors
+const BRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+
 struct SpiLink {
     spi: SpiDma<'static, Blocking>,
     rx: DmaRxBuf,
@@ -27,9 +30,10 @@ struct SpiLink {
     handshake: Output<'static>,
 }
 
-// One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it
+// One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it.
+// Stops the motors once if the Brain stays silent for BRAIN_TIMEOUT.
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
-async fn exchange(link: SpiLink, reply: &Frame) -> (SpiLink, Frame) {
+async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) -> (SpiLink, Frame) {
     let SpiLink { spi, rx, mut tx, mut handshake } = link;
     tx.fill(reply);
     let transfer = match spi.transfer(FRAME_LEN, rx, FRAME_LEN, tx) {
@@ -37,8 +41,15 @@ async fn exchange(link: SpiLink, reply: &Frame) -> (SpiLink, Frame) {
         Err((err, ..)) => panic!("BrainComm: cannot arm SPI transfer: {:?}", err),
     };
     handshake.set_high();
+    let armed_at = Instant::now();
+    let mut stopped = false;
     // The slave driver has no async API, so poll instead of blocking Core 0
     while !transfer.is_done() {
+        // Retried each poll while the inbox is full
+        if !stopped && armed_at.elapsed() > BRAIN_TIMEOUT && motion.try_send(MotionCommand::Stop).is_ok() {
+            warn!("BrainComm: Brain silent for {} ms, motors stopped", BRAIN_TIMEOUT.as_millis());
+            stopped = true;
+        }
         Timer::after_micros(100).await;
     }
     let (spi, (rx, tx)) = transfer.wait();
@@ -100,7 +111,7 @@ async fn run_brain_comm(
     let (mut seq, mut status) = (0, Status::Ack);
     loop {
         let pos = links.robot_pos.try_get().unwrap_or_default();
-        let (next_link, request) = exchange(link, &encode_reply(status, seq, &pos)).await;
+        let (next_link, request) = exchange(link, &encode_reply(status, seq, &pos), &links.motion).await;
         link = next_link;
         (seq, status) = handle(&request, &links);
     }

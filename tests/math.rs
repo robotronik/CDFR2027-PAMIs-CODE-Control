@@ -11,6 +11,7 @@ mod tests {
     use core::f32::consts::{PI, TAU};
     use pami_control::math_utils::wrap_angle;
     use pami_control::motor_control::{RobotPos, motor_duty};
+    use pami_control::servo_control::servo_duty;
 
     fn assert_close(actual: f32, expected: f32) {
         assert!(
@@ -86,5 +87,15 @@ mod tests {
     fn motor_duty_clamps_to_full_duty() {
         assert_eq!(motor_duty(2000), (1000, 0));
         assert_eq!(motor_duty(i16::MIN), (0, 1000));
+    }
+
+    #[test]
+    fn servo_duty_maps_angle_to_pulse_and_clamps() {
+        // 14-bit duty over a 20 ms period: 500 us -> 409, 1500 us -> 1228, 2500 us -> 2048
+        assert_eq!(servo_duty(0.0), 409);
+        assert_eq!(servo_duty(90.0), 1228);
+        assert_eq!(servo_duty(180.0), 2048);
+        assert_eq!(servo_duty(-10.0), servo_duty(0.0));
+        assert_eq!(servo_duty(200.0), servo_duty(180.0));
     }
 }

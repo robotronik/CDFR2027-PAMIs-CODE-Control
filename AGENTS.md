@@ -58,5 +58,5 @@ plus the firmware bin (`src/main.rs`) so tests can import modules.
   `trace_path` for symbols and call chains, `get_code_snippet` for one function,
   `get_architecture` for an overview. Read or grep files only for literals or when the graph
   lacks coverage. Re-index with `index_repository` (mode `fast`) after large changes.
-- Known gaps, deferred on purpose: panic handler doesn't stop the motors, no Brain-silence
-  watchdog, servos on plain GPIO (need LEDC PWM), motor control law is a stub, OTOS scale and control loop not calibrated yet.
+- Known gaps, deferred on purpose: motor control law is a stub, OTOS scale, control loop and
+  servo pulse range not calibrated yet.
