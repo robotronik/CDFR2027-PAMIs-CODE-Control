@@ -1,6 +1,6 @@
 // OTOS odometry sensor on I2C0, polled by MotorControl every tick.
-// Robotronik board running the SparkFun OTOS firmware: register map in
-// https://github.com/robotronik/Optical_Tracking_Odometry_Sensor (Firmware/OTOS_Register_Map.pdf)
+// Robotronik board running the SparkFun OTOS firmware, see
+// https://github.com/robotronik/Optical_Tracking_Odometry_Sensor (Firmware/SFE/Inc/registers.h)
 
 use super::robot_state::RobotPos;
 use crate::board::I2cPins;
@@ -81,20 +81,17 @@ impl Otos {
 
     async fn calibrate_and_reset(&mut self) -> Result<(), Error> {
         self.write_reg(REG_IMU_CALIBRATION, IMU_CALIBRATION_SAMPLES).await?;
-        // ~0.6 s nominal; on an IMU timeout the firmware aborts and the counter never reaches 0
-        let mut polls = 0;
-        while self.read_reg(REG_IMU_CALIBRATION).await? != 0 {
-            polls += 1;
-            if polls == 200 {
-                warn!("OTOS: IMU calibration did not finish, heading may drift");
-                break;
+        // Bounded: if the IMU stops answering, the firmware aborts with the counter stuck above 0
+        for _ in 0..200 {
+            if self.read_reg(REG_IMU_CALIBRATION).await? == 0 {
+                return self.write_reg(REG_RESET, RESET_TRACKING).await;
             }
             Timer::after_millis(10).await;
         }
+        warn!("OTOS: IMU calibration did not finish, heading may drift");
         self.write_reg(REG_RESET, RESET_TRACKING).await
     }
 
-    // World frame
     pub async fn read_pos(&mut self) -> Result<RobotPos, Error> {
         let mut raw = [0u8; 12];
         self.i2c.write_read_async(ADDRESS, &[REG_POSITION], &mut raw).await?;
