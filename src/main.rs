@@ -15,7 +15,7 @@ use pami_control::board::Board;
 use pami_control::brain_comm::{BrainCommLinks, BrainCommTask};
 use pami_control::motor_control::{MotionCommandChannel, MotorControlTask, Otos, RobotPosWatch};
 use pami_control::servo_control::{ServoCommandChannel, ServoControlTask};
-use pami_control::utility::{BatteryTask, ButtonTask, LedTask};
+use pami_control::utility::{BatteryLowWatch, BatteryTask, ButtonTask, LedTask};
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -33,9 +33,11 @@ static EXECUTOR_CORE_1: StaticCell<esp_rtos::embassy::Executor> = StaticCell::ne
 // MOTION_COMMANDS: BrainComm (Core 0) -> MotorControl (Core 1)
 // ROBOT_POS:       MotorControl (Core 1) -> BrainComm (Core 0)
 // SERVO_COMMANDS:  BrainComm (Core 0) -> ServoControl (Core 0)
+// BATTERY_LOW:     Battery (Core 0) -> BrainComm (Core 0)
 static MOTION_COMMANDS: MotionCommandChannel = MotionCommandChannel::new();
 static ROBOT_POS: RobotPosWatch = RobotPosWatch::new();
 static SERVO_COMMANDS: ServoCommandChannel = ServoCommandChannel::new();
+static BATTERY_LOW: BatteryLowWatch = BatteryLowWatch::new();
 
 #[allow(
     clippy::large_stack_frames,
@@ -73,7 +75,12 @@ async fn main(spawner: Spawner) -> ! {
     // Core 0 runs everything else
     LedTask::spawn(&spawner, board.status_led, 500);
     ButtonTask::spawn(&spawner, board.boot_button);
-    BatteryTask::spawn(&spawner, board.battery_level, board.peripherals.adc1);
+    BatteryTask::spawn(
+        &spawner,
+        board.battery_level,
+        board.peripherals.adc1,
+        BATTERY_LOW.sender(),
+    );
 
     ServoControlTask::spawn(
         &spawner,
@@ -93,6 +100,9 @@ async fn main(spawner: Spawner) -> ! {
             robot_pos: ROBOT_POS
                 .receiver()
                 .expect("RobotPos watch has no free receiver slot"),
+            battery_low: BATTERY_LOW
+                .receiver()
+                .expect("BatteryLow watch has no free receiver slot"),
         },
     );
 

@@ -11,24 +11,27 @@ mod tests {
     use embassy_sync::channel::Channel;
     use embassy_sync::watch::Watch;
     use pami_control::brain_comm::{
-        BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
+        BATTERY_LOW_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
         handle,
     };
     use pami_control::motor_control::{
         MotionCommand, MotionCommandChannel, RobotPos, RobotPosWatch,
     };
     use pami_control::servo_control::{ServoCommand, ServoCommandChannel};
+    use pami_control::utility::BatteryLowWatch;
 
     // The board resets between tests, so every test gets fresh inboxes
     static MOTION: MotionCommandChannel = Channel::new();
     static SERVO: ServoCommandChannel = Channel::new();
     static POS: RobotPosWatch = Watch::new();
+    static BATTERY_LOW: BatteryLowWatch = Watch::new();
 
     fn links() -> BrainCommLinks {
         BrainCommLinks {
             motion: MOTION.sender(),
             servo: SERVO.sender(),
             robot_pos: POS.receiver().unwrap(),
+            battery_low: BATTERY_LOW.receiver().unwrap(),
         }
     }
 
@@ -158,11 +161,18 @@ mod tests {
             theta: -0.5,
             ..Default::default()
         };
-        let f = encode_reply(Status::QueueFull, 9, &pos);
+        let f = encode_reply(Status::QueueFull, 9, &pos, false);
         assert_eq!(&f[0..3], &[MAGIC, 5, 9]);
         assert_eq!(&f[3..7], &1.0f32.to_le_bytes());
         assert_eq!(&f[7..11], &2.0f32.to_le_bytes());
         assert_eq!(&f[11..15], &(-0.5f32).to_le_bytes());
+        assert_eq!(f[15], crc8(&f[..15]));
+    }
+
+    #[test]
+    fn encode_reply_sets_battery_low_flag() {
+        let f = encode_reply(Status::BadCrc, 1, &RobotPos::default(), true);
+        assert_eq!(f[1], BATTERY_LOW_FLAG | Status::BadCrc as u8);
         assert_eq!(f[15], crc8(&f[..15]));
     }
 

@@ -30,6 +30,7 @@ plus the firmware bin (`src/main.rs`) so tests can import modules.
   - `MOTION_COMMANDS` (`Channel`): BrainComm -> MotorControl
   - `ROBOT_POS` (`Watch`, latest value): MotorControl -> BrainComm
   - `SERVO_COMMANDS` (`Channel`): BrainComm -> ServoControl
+  - `BATTERY_LOW` (`Watch`, latest value): Battery -> BrainComm
   
   Use `CriticalSectionRawMutex` for anything crossing cores.
 - The BrainBoard is the SPI master. Wire format spec: [wiki](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol).

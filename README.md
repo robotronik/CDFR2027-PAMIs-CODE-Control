@@ -37,7 +37,7 @@ src/
 │   └── servo_commands.rs     # ServoCommand inbox (BrainComm -> ServoControl)
 ├── utility.rs                # Housekeeping root module
 └── utility/
-    ├── battery.rs            # BatteryTask: ADC battery voltage monitoring on GPIO1 (1Hz)
+    ├── battery.rs            # BatteryTask: 2S battery voltage on GPIO1 (1 Hz), low flag to BrainComm
     ├── button.rs             # ButtonTask: Boot button monitoring on GPIO0
     └── led.rs                # LedTask: Heartbeat status LED on GPIO16
 ```

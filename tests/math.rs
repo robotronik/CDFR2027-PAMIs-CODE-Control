@@ -12,6 +12,7 @@ mod tests {
     use pami_control::math_utils::wrap_angle;
     use pami_control::motor_control::{RobotPos, motor_duty};
     use pami_control::servo_control::servo_duty;
+    use pami_control::utility::battery_low;
 
     fn assert_close(actual: f32, expected: f32) {
         assert!(
@@ -97,5 +98,13 @@ mod tests {
         assert_eq!(servo_duty(180.0), 2048);
         assert_eq!(servo_duty(-10.0), servo_duty(0.0));
         assert_eq!(servo_duty(200.0), servo_duty(180.0));
+    }
+
+    #[test]
+    fn battery_low_has_hysteresis() {
+        assert!(!battery_low(false, 7000));
+        assert!(battery_low(false, 6999));
+        assert!(battery_low(true, 7199));
+        assert!(!battery_low(true, 7200));
     }
 }
