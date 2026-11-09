@@ -14,8 +14,10 @@ mod tests {
     use esp_hal::time::Rate;
     use pami_control::board::Board;
 
-    // Reads the GPIO4 pad itself (motor 0 IN1), whatever peripheral drives it
-    fn gpio4_pad_is_high() -> bool {
+    // Real voltage level on GPIO4 (motor 0 IN1), read straight from the registers.
+    // Input::new(GPIO4) would detach MCPWM from the pin, so the "high before" check would always fail.
+    // Instead: enable the pad's input buffer (output-only pads can't be read back), then read the GPIO input register.
+    fn motor0_in1_level_is_high() -> bool {
         IO_MUX::regs().gpio(4).modify(|_, w| w.fun_ie().set_bit());
         GPIO::regs().in_().read().bits() & (1 << 4) != 0
     }
@@ -46,10 +48,10 @@ mod tests {
         // Same 100 % duty as motor_duty(1000)
         pwm.0.set_timestamp(1000);
         Timer::after_millis(1).await;
-        assert!(gpio4_pad_is_high(), "PWM didn't drive IN1 high, test setup is wrong");
+        assert!(motor0_in1_level_is_high(), "PWM didn't drive IN1 high, test setup is wrong");
 
         Board::stop_motors_after_panic();
         Timer::after_millis(1).await;
-        assert!(!gpio4_pad_is_high(), "IN1 still high after stop_motors_after_panic");
+        assert!(!motor0_in1_level_is_high(), "IN1 still high after stop_motors_after_panic");
     }
 }
