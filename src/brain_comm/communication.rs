@@ -49,7 +49,7 @@ async fn exchange(link: SpiLink, reply: &Frame) -> (SpiLink, Frame) {
 }
 
 // Decodes a request and forwards it to its task; returns the seq and status for the next reply
-fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
+pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
     let request = match decode(frame) {
         (seq, Ok(request)) => {
             debug!("BrainComm: seq {} {:?}", seq, request);

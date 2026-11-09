@@ -2,5 +2,5 @@
 mod communication;
 mod protocol;
 
-pub use communication::{BrainCommLinks, BrainCommTask};
+pub use communication::{BrainCommLinks, BrainCommTask, handle};
 pub use protocol::{FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply};
