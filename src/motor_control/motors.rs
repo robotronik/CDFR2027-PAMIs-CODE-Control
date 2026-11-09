@@ -7,7 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
 use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
-use log::debug;
+use log::{debug, warn};
 
 const CONTROL_PERIOD: Duration = Duration::from_millis(20);
 const MAX_DT: Duration = Duration::from_millis(50);
@@ -72,6 +72,20 @@ async fn run_motor_control(
         .unwrap();
     mcpwm.timer0.start(timer_cfg);
 
+    let mut set_duties = |commands: [i16; 3]| {
+        let (in1, in2) = motor_duty(commands[0]);
+        pwm0.0.set_timestamp(in1);
+        pwm0.1.set_timestamp(in2);
+        let (in1, in2) = motor_duty(commands[1]);
+        pwm1.0.set_timestamp(in1);
+        pwm1.1.set_timestamp(in2);
+        let (in1, in2) = motor_duty(commands[2]);
+        pwm2.0.set_timestamp(in1);
+        pwm2.1.set_timestamp(in2);
+    };
+
+    otos.init().await;
+
     let mut target_pos = RobotPos::default();
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
@@ -81,7 +95,15 @@ async fn run_motor_control(
         ticker.next().await;
 
         let read_time = Instant::now();
-        let current_pos = otos.read_pos();
+        let current_pos = match otos.read_pos().await {
+            Ok(pos) => pos,
+            Err(err) => {
+                // Steering on a stale position is worse than stopping for a tick
+                warn!("MotorControl: OTOS read failed ({:?}), motors stopped", err);
+                set_duties([0; 3]);
+                continue;
+            }
+        };
 
         if let Ok(command) = command_receiver.try_receive() {
             debug!("MotorControl (Core 1) received command: {:?}", command);
@@ -112,15 +134,7 @@ async fn run_motor_control(
 
         let commands = calculate_motor_commands(target_pos - current_pos, dt);
 
-        let (in1, in2) = motor_duty(commands[0]);
-        pwm0.0.set_timestamp(in1);
-        pwm0.1.set_timestamp(in2);
-        let (in1, in2) = motor_duty(commands[1]);
-        pwm1.0.set_timestamp(in1);
-        pwm1.1.set_timestamp(in2);
-        let (in1, in2) = motor_duty(commands[2]);
-        pwm2.0.set_timestamp(in1);
-        pwm2.1.set_timestamp(in2);
+        set_duties(commands);
 
         pos_sender.send(current_pos);
     }
