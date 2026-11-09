@@ -24,8 +24,8 @@ pub fn motor_duty(command: i16) -> (u16, u16) {
 
 // Returns one signed duty per motor, in -PWM_PERIOD..=PWM_PERIOD
 // delta_pos is in the world frame (OTOS): rotate by -theta before mapping to wheels
-fn calculate_motor_commands(delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
-    let dt_s = dt.as_micros() as f32 * 1e-6;
+fn calculate_motor_commands(_delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
+    let _dt_s = dt.as_micros() as f32 * 1e-6;
 
     let commands: [i16; 3] = [0; 3];
 

@@ -27,7 +27,7 @@ src/
 │   └── protocol.rs           # Wire format encoding/decoding (pure functions, no I/O)
 ├── motor_control.rs          # Locomotion root module (runs on Core 1)
 ├── motor_control/
-│   ├── motors.rs             # MotorControlTask: 3 DC motors via DRV8871 H-bridges (50Hz), owns the OTOS
+│   ├── motors.rs             # MotorControlTask: 3 DC motors via DRV8871 H-bridges (50 Hz loop, 20 kHz PWM), owns the OTOS
 │   ├── otos.rs               # Otos: Optical Tracking Odometry Sensor driver over I2C0
 │   ├── motor_commands.rs     # MotionCommand inbox (BrainComm -> MotorControl)
 │   └── robot_state.rs        # RobotPos watch (MotorControl -> BrainComm)
@@ -94,6 +94,10 @@ Tests run on the board itself ([embedded-test](https://github.com/probe-rs/embed
 ```bash
 cargo install probe-rs-tools --locked   # once
 cargo hil
+```
+`cargo hil` stops at the first failing suite, and `otos` needs the sensor plugged in. Without it, pick the suites:
+```bash
+cargo hil --test math --test protocol --test board
 ```
 
 ### Flashing to the ESP32-S3

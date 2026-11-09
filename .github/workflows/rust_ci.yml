@@ -33,3 +33,5 @@ jobs:
       # No board in CI: only check that the on-device tests compile
       - name: Build tests
         run: cargo test --no-run
+      - name: Clippy
+        run: cargo clippy --lib --bins --tests -- -D warnings
