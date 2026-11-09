@@ -7,7 +7,7 @@ use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::Blocking;
 use esp_hal::dma::{DmaRxBuf, DmaTxBuf};
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
 use esp_hal::peripherals::{DMA_CH0, SPI2};
 use esp_hal::spi::Mode;
 use esp_hal::spi::slave::Spi;
@@ -97,11 +97,13 @@ async fn run_brain_comm(
     dma_channel: DMA_CH0<'static>,
     mut links: BrainCommLinks,
 ) {
+    // Pull-up keeps CS high when no Brain is connected, otherwise the floating line clocks in noise
+    let cs = Input::new(spi.cs, InputConfig::default().with_pull(Pull::Up));
     let spi_slave = Spi::new(spi2, Mode::_0)
         .with_sck(spi.sclk)
         .with_mosi(spi.mosi)
         .with_miso(spi.miso)
-        .with_cs(spi.cs)
+        .with_cs(cs.peripheral_input())
         .with_dma(dma_channel);
     let mut link = SpiLink {
         spi: spi_slave,
