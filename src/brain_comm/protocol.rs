@@ -1,5 +1,5 @@
 // SPI frame <-> request/response encoding. Pure functions, no I/O.
-// Wire format: docs/brain_spi_protocol.md
+// Wire format: https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol
 
 use crate::motor_control::RobotPos;
 
