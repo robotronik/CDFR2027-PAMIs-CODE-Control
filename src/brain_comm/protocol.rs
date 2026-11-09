@@ -2,6 +2,7 @@
 // Wire format: https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol
 
 use crate::motor_control::RobotPos;
+use crate::servo_control::SERVO_COUNT;
 
 pub const FRAME_LEN: usize = 16;
 pub const MAGIC: u8 = 0xA5;
@@ -60,7 +61,7 @@ fn decode_request(frame: &Frame) -> Result<Request, Status> {
             y: read_f32(data, 4)?,
             theta: read_f32(data, 8)?,
         }),
-        0x03 if data[1] <= 180 => Ok(Request::SetServo { id: data[0], angle_deg: data[1] }),
+        0x03 if (data[0] as usize) < SERVO_COUNT && data[1] <= 180 => Ok(Request::SetServo { id: data[0], angle_deg: data[1] }),
         0x03 => Err(Status::BadArgument),
         _ => Err(Status::UnknownOpcode),
     }

@@ -151,6 +151,10 @@ mod tests {
             decode(&frame(0x03, 0, &[0, 181])).1,
             Err(Status::BadArgument)
         );
+        assert_eq!(
+            decode(&frame(0x03, 0, &[4, 90])).1,
+            Err(Status::BadArgument)
+        );
     }
 
     #[test]

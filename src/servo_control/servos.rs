@@ -8,7 +8,7 @@ use esp_hal::peripherals::LEDC;
 use esp_hal::time::Rate;
 use log::{debug, warn};
 
-const SERVO_COUNT: usize = 4;
+pub const SERVO_COUNT: usize = 4;
 const PERIOD_US: f32 = 20_000.0;
 const DUTY_MAX: f32 = (1 << 14) as f32;
 // shortcut: generic 500-2500 us range for 0-180°, calibrate per servo model once mounted
