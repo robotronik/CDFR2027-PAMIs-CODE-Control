@@ -80,6 +80,7 @@ async fn main(spawner: Spawner) -> ! {
         &spawner,
         board.spi,
         board.peripherals.spi2,
+        board.peripherals.dma0,
         BrainCommLinks {
             motion: MOTION_COMMANDS.sender(),
             servo: SERVO_COMMANDS.sender(),

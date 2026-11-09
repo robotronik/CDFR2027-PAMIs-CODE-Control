@@ -1,7 +1,7 @@
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{AnyPin, Input, InputConfig, Level, Output, OutputConfig, Pin, Pull};
 use esp_hal::peripherals::{
-    ADC1, CPU_CTRL, FROM_CPU_INTR1, GPIO1, I2C0, LEDC, MCPWM0, SPI2, UART0,
+    ADC1, CPU_CTRL, DMA_CH0, FROM_CPU_INTR1, GPIO1, I2C0, LEDC, MCPWM0, SPI2, UART0,
 };
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
@@ -36,6 +36,7 @@ pub struct UartPins {
 // Peripherals handed to the tasks that build their drivers
 pub struct BoardPeripherals {
     pub spi2: SPI2<'static>,
+    pub dma0: DMA_CH0<'static>, // for SPI2
     pub i2c0: I2C0<'static>,
     pub uart0: UART0<'static>,
     pub adc1: ADC1<'static>,
@@ -128,6 +129,7 @@ impl Board {
 
         let board_peripherals = BoardPeripherals {
             spi2: peripherals.SPI2,
+            dma0: peripherals.DMA_CH0,
             i2c0: peripherals.I2C0,
             uart0: peripherals.UART0,
             adc1: peripherals.ADC1,
