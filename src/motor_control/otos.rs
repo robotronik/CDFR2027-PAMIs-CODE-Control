@@ -81,7 +81,14 @@ impl Otos {
 
     async fn calibrate_and_reset(&mut self) -> Result<(), Error> {
         self.write_reg(REG_IMU_CALIBRATION, IMU_CALIBRATION_SAMPLES).await?;
+        // ~0.6 s nominal; on an IMU timeout the firmware aborts and the counter never reaches 0
+        let mut polls = 0;
         while self.read_reg(REG_IMU_CALIBRATION).await? != 0 {
+            polls += 1;
+            if polls == 200 {
+                warn!("OTOS: IMU calibration did not finish, heading may drift");
+                break;
+            }
             Timer::after_millis(10).await;
         }
         self.write_reg(REG_RESET, RESET_TRACKING).await
