@@ -3,7 +3,7 @@ use super::protocol::{
 };
 use crate::board::{Board, SpiPins};
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
-use crate::servo_control::{ServoCommand, ServoCommandSender};
+use crate::servo_control::ServoCommandSender;
 use crate::utility::BatteryLowReceiver;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
@@ -77,14 +77,8 @@ pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
     };
     let sent = match request {
         Request::Nop => true,
-        Request::Stop => links.motion.try_send(MotionCommand::Stop).is_ok(),
-        Request::TargetPos { x, y, theta } => {
-            links.motion.try_send(MotionCommand::TargetPos { x, y, theta }).is_ok()
-        }
-        Request::SetServo { id, angle_deg } => links
-            .servo
-            .try_send(ServoCommand::SetAngle { id, angle_deg })
-            .is_ok(),
+        Request::Motion(command) => links.motion.try_send(command).is_ok(),
+        Request::Servo(command) => links.servo.try_send(command).is_ok(),
     };
     if !sent {
         warn!("BrainComm: inbox full, dropping {:?}", request);

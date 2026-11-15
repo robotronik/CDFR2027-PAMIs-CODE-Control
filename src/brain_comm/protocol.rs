@@ -1,8 +1,8 @@
 // SPI frame <-> request/response encoding. Pure functions, no I/O.
 // Wire format: https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol
 
-use crate::motor_control::RobotPos;
-use crate::servo_control::SERVO_COUNT;
+use crate::motor_control::{MotionCommand, RobotPos};
+use crate::servo_control::{SERVO_COUNT, ServoCommand};
 
 pub const FRAME_LEN: usize = 16;
 pub const MAGIC: u8 = 0xA5;
@@ -23,9 +23,8 @@ pub enum Status {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Request {
     Nop,
-    Stop,
-    TargetPos { x: f32, y: f32, theta: f32 },
-    SetServo { id: u8, angle_deg: u8 },
+    Motion(MotionCommand),
+    Servo(ServoCommand),
 }
 
 // CRC-8/SMBUS: poly 0x07, init 0x00
@@ -51,13 +50,15 @@ pub fn decode(frame: &Frame) -> Result<Request, Status> {
     let data = &frame[3..15];
     match frame[1] {
         0x00 => Ok(Request::Nop),
-        0x01 => Ok(Request::Stop),
-        0x02 => Ok(Request::TargetPos {
+        0x01 => Ok(Request::Motion(MotionCommand::Stop)),
+        0x02 => Ok(Request::Motion(MotionCommand::TargetPos {
             x: read_f32(data, 0)?,
             y: read_f32(data, 4)?,
             theta: read_f32(data, 8)?,
-        }),
-        0x03 if (data[0] as usize) < SERVO_COUNT && data[1] <= 180 => Ok(Request::SetServo { id: data[0], angle_deg: data[1] }),
+        })),
+        0x03 if (data[0] as usize) < SERVO_COUNT && data[1] <= 180 => {
+            Ok(Request::Servo(ServoCommand::SetAngle { id: data[0], angle_deg: data[1] }))
+        }
         0x03 => Err(Status::BadArgument),
         _ => Err(Status::UnknownOpcode),
     }

@@ -3,7 +3,7 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{self, Channel};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MotionCommand {
     Stop,
     TargetPos { x: f32, y: f32, theta: f32 },
