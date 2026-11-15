@@ -158,6 +158,7 @@ impl Board {
     }
 
     // The panic handler is the only caller of software_reset, so a software reset means we panicked
+    // shortcut: a probe-rs reset likely reads as CoreSw too and counts as a panic; power-cycle for a clean boot
     pub fn restarted_after_panic() -> bool {
         reset_reason() == Some(SocResetReason::CoreSw)
     }

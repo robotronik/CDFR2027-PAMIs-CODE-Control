@@ -56,6 +56,8 @@ cargo hil
 ```bash
 cargo hil --test math --test protocol --test board
 ```
+A probe-rs reset likely looks like a panic restart to the firmware, which then keeps the OTOS pose
+(see `Board::restarted_after_panic`). Power-cycle the board if `otos_init_then_read_near_origin` fails.
 
 ### Flashing to the ESP32-S3
 
