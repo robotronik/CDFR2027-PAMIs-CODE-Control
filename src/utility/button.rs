@@ -9,7 +9,9 @@ async fn run_button(mut button: Input<'static>) {
     loop {
         button.wait_for_falling_edge().await;
         info!("Boot button pressed!");
-        // Debounce: contact bounce would log one press several times
+        // Debounce press and release: bounce on either edge would log one press several times
+        Timer::after_millis(50).await;
+        button.wait_for_high().await;
         Timer::after_millis(50).await;
     }
 }
