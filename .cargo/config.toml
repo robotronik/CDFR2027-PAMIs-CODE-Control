@@ -19,6 +19,8 @@ ESP_LOG = "info"
 [build]
 rustflags = [
   "-C", "link-arg=-nostartfiles",
+  # The ESP32-S3 runs code from RAM by design, so silence binutils' RWX segment warning
+  "-C", "link-arg=-Wl,--no-warn-rwx-segments",
 ]
 
 target = "xtensa-esp32s3-none-elf"
