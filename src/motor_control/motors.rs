@@ -87,8 +87,9 @@ async fn run_motor_control(
     otos.init().await;
 
     let mut target_pos = RobotPos::default();
-    // Stop needs the current pose, which is only known after the OTOS read
-    let mut stop_pending = false;
+    // Stop needs the current pose, only known after the OTOS read. Pending at boot so the robot
+    // holds where it is: after a warm restart the OTOS pose is kept and origin may be far away.
+    let mut stop_pending = true;
     let mut otos_ok = true;
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
