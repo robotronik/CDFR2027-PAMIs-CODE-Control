@@ -62,19 +62,16 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender, la
     (SpiLink { spi, rx, tx, handshake }, request)
 }
 
-// Decodes a request and forwards it to its task; returns the seq and status for the next reply
-pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
-    let seq = frame[2];
+// Decodes a request and forwards it to its task; returns the status for the next reply
+pub fn handle(frame: &Frame, links: &BrainCommLinks) -> Status {
     let request = match decode(frame) {
-        Ok(request) => {
-            debug!("BrainComm: seq {} {:?}", seq, request);
-            request
-        }
+        Ok(request) => request,
         Err(err) => {
-            warn!("BrainComm: seq {} rejected: {:?}", seq, err);
-            return (seq, err);
+            warn!("BrainComm: seq {} rejected: {:?}", frame[2], err);
+            return err;
         }
     };
+    debug!("BrainComm: seq {} {:?}", frame[2], request);
     let sent = match request {
         Request::Nop => true,
         Request::Motion(command) => links.motion.try_send(command).is_ok(),
@@ -82,8 +79,9 @@ pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
     };
     if !sent {
         warn!("BrainComm: inbox full, dropping {:?}", request);
+        return Status::QueueFull;
     }
-    (seq, if sent { Status::Ack } else { Status::QueueFull })
+    Status::Ack
 }
 
 #[embassy_executor::task]
@@ -125,7 +123,8 @@ async fn run_brain_comm(
         let reply = encode_reply(status, flags, seq, &pos.unwrap_or_default());
         let (next_link, request) = exchange(link, &reply, &links.motion, last_valid).await;
         link = next_link;
-        (seq, status) = handle(&request, &links);
+        status = handle(&request, &links);
+        seq = request[2];
         let valid = !matches!(status, Status::BadMagic | Status::BadCrc);
         restarted &= !valid;
         if valid {
