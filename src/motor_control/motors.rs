@@ -72,16 +72,13 @@ async fn run_motor_control(
         .unwrap();
     mcpwm.timer0.start(timer_cfg);
 
-    let mut set_duties = |commands: [i16; 3]| {
-        let (in1, in2) = motor_duty(commands[0]);
-        pwm0.0.set_timestamp(in1);
-        pwm0.1.set_timestamp(in2);
-        let (in1, in2) = motor_duty(commands[1]);
-        pwm1.0.set_timestamp(in1);
-        pwm1.1.set_timestamp(in2);
-        let (in1, in2) = motor_duty(commands[2]);
-        pwm2.0.set_timestamp(in1);
-        pwm2.1.set_timestamp(in2);
+    let mut set_duties = |duties: [(u16, u16); 3]| {
+        pwm0.0.set_timestamp(duties[0].0);
+        pwm0.1.set_timestamp(duties[0].1);
+        pwm1.0.set_timestamp(duties[1].0);
+        pwm1.1.set_timestamp(duties[1].1);
+        pwm2.0.set_timestamp(duties[2].0);
+        pwm2.1.set_timestamp(duties[2].1);
     };
 
     otos.init().await;
@@ -114,12 +111,15 @@ async fn run_motor_control(
         let current_pos = match otos.read_pos().await {
             Ok(pos) => pos,
             Err(err) => {
-                // Steering on a stale position is worse than stopping for a tick
+                // Steering on a stale position is worse than braking for a tick
                 if otos_ok {
-                    warn!("MotorControl: OTOS read failed ({:?}), motors stopped", err);
+                    warn!("MotorControl: OTOS read failed ({:?}), braking", err);
                     otos_ok = false;
                 }
-                set_duties([0; 3]);
+                // Both inputs high = DRV8871 brake (both low would coast)
+                set_duties([(PWM_PERIOD, PWM_PERIOD); 3]);
+                // Empty watch: BrainComm reports ODOMETRY_NOT_READY
+                pos_sender.clear();
                 continue;
             }
         };
@@ -139,8 +139,7 @@ async fn run_motor_control(
         last_read_time = read_time;
 
         let commands = calculate_motor_commands(target_pos - current_pos, dt);
-
-        set_duties(commands);
+        set_duties(commands.map(motor_duty));
 
         pos_sender.send(current_pos);
     }
