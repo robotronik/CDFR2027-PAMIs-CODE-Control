@@ -9,8 +9,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 #[embedded_test::tests(executor = esp_rtos::embassy::Executor::new())]
 mod tests {
     use core::f32::consts::{PI, TAU};
-    use pami_control::math_utils::wrap_angle;
-    use pami_control::motor_control::{RobotPos, motor_duty};
+    use pami_control::motor_control::{RobotPos, motor_duty, wrap_angle};
     use pami_control::servo_control::servo_duty;
     use pami_control::utility::battery_low;
 

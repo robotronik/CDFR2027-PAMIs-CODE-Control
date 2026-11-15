@@ -3,7 +3,7 @@ use super::protocol::{
 };
 use crate::board::{Board, SpiPins};
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
-use crate::servo_control::{ServoCommand, ServoCommandSender};
+use crate::servo_control::ServoCommandSender;
 use crate::utility::BatteryLowReceiver;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Timer};
@@ -24,7 +24,7 @@ pub struct BrainCommLinks {
     pub battery_low: BatteryLowReceiver,
 }
 
-// No complete frame from the Brain for this long stops the motors
+// No valid frame from the Brain for this long stops the motors
 const BRAIN_TIMEOUT: Duration = Duration::from_millis(500);
 
 struct SpiLink {
@@ -35,9 +35,9 @@ struct SpiLink {
 }
 
 // One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it.
-// Sends Stop (brake and hold) once if the Brain stays silent for BRAIN_TIMEOUT.
+// Sends Stop (brake and hold) once if no valid frame came for BRAIN_TIMEOUT.
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
-async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) -> (SpiLink, Frame) {
+async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender, last_valid: Instant) -> (SpiLink, Frame) {
     let SpiLink { spi, rx, mut tx, mut handshake } = link;
     tx.fill(reply);
     let transfer = match spi.transfer(FRAME_LEN, rx, FRAME_LEN, tx) {
@@ -45,13 +45,12 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) ->
         Err((err, ..)) => panic!("BrainComm: cannot arm SPI transfer: {:?}", err),
     };
     handshake.set_high();
-    let armed_at = Instant::now();
     let mut stopped = false;
     // The slave driver has no async API, so poll instead of blocking Core 0
     while !transfer.is_done() {
         // Retried each poll while the inbox is full
-        if !stopped && armed_at.elapsed() > BRAIN_TIMEOUT && motion.try_send(MotionCommand::Stop).is_ok() {
-            warn!("BrainComm: Brain silent for {} ms, stopping and holding position", BRAIN_TIMEOUT.as_millis());
+        if !stopped && last_valid.elapsed() > BRAIN_TIMEOUT && motion.try_send(MotionCommand::Stop).is_ok() {
+            warn!("BrainComm: no valid frame for {} ms, stopping and holding position", BRAIN_TIMEOUT.as_millis());
             stopped = true;
         }
         Timer::after_micros(100).await;
@@ -63,34 +62,26 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender) ->
     (SpiLink { spi, rx, tx, handshake }, request)
 }
 
-// Decodes a request and forwards it to its task; returns the seq and status for the next reply
-pub fn handle(frame: &Frame, links: &BrainCommLinks) -> (u8, Status) {
-    let seq = frame[2];
+// Decodes a request and forwards it to its task; returns the status for the next reply
+pub fn handle(frame: &Frame, links: &BrainCommLinks) -> Status {
     let request = match decode(frame) {
-        Ok(request) => {
-            debug!("BrainComm: seq {} {:?}", seq, request);
-            request
-        }
+        Ok(request) => request,
         Err(err) => {
-            warn!("BrainComm: seq {} rejected: {:?}", seq, err);
-            return (seq, err);
+            warn!("BrainComm: seq {} rejected: {:?}", frame[2], err);
+            return err;
         }
     };
+    debug!("BrainComm: seq {} {:?}", frame[2], request);
     let sent = match request {
         Request::Nop => true,
-        Request::Stop => links.motion.try_send(MotionCommand::Stop).is_ok(),
-        Request::TargetPos { x, y, theta } => {
-            links.motion.try_send(MotionCommand::TargetPos { x, y, theta }).is_ok()
-        }
-        Request::SetServo { id, angle_deg } => links
-            .servo
-            .try_send(ServoCommand::SetAngle { id, angle_deg })
-            .is_ok(),
+        Request::Motion(command) => links.motion.try_send(command).is_ok(),
+        Request::Servo(command) => links.servo.try_send(command).is_ok(),
     };
     if !sent {
         warn!("BrainComm: inbox full, dropping {:?}", request);
+        return Status::QueueFull;
     }
-    (seq, if sent { Status::Ack } else { Status::QueueFull })
+    Status::Ack
 }
 
 #[embassy_executor::task]
@@ -118,6 +109,7 @@ async fn run_brain_comm(
     let (mut seq, mut status) = (0, Status::Ack);
     // Cleared once a valid frame shows the Brain clocked a reply carrying it
     let mut restarted = Board::restarted_after_panic();
+    let mut last_valid = Instant::now();
     loop {
         // The pos watch stays empty until MotorControl's first OTOS read
         let pos = links.robot_pos.try_get();
@@ -129,10 +121,15 @@ async fn run_brain_comm(
             flags |= RESTARTED_FLAG;
         }
         let reply = encode_reply(status, flags, seq, &pos.unwrap_or_default());
-        let (next_link, request) = exchange(link, &reply, &links.motion).await;
+        let (next_link, request) = exchange(link, &reply, &links.motion, last_valid).await;
         link = next_link;
-        (seq, status) = handle(&request, &links);
-        restarted &= matches!(status, Status::BadMagic | Status::BadCrc);
+        status = handle(&request, &links);
+        seq = request[2];
+        let valid = !matches!(status, Status::BadMagic | Status::BadCrc);
+        restarted &= !valid;
+        if valid {
+            last_valid = Instant::now();
+        }
     }
 }
 

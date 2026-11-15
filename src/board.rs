@@ -1,8 +1,8 @@
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{AnyPin, Input, InputConfig, Level, Output, OutputConfig, Pin, Pull};
 use esp_hal::peripherals::{
-    ADC1, CPU_CTRL, DMA_CH0, FROM_CPU_INTR1, GPIO1, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9,
-    I2C0, LEDC, MCPWM0, SPI2, UART0,
+    ADC1, CPU_CTRL, DMA_CH0, FROM_CPU_INTR1, GPIO1, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, I2C0,
+    LEDC, MCPWM0, SPI2,
 };
 use esp_hal::rtc_cntl::SocResetReason;
 use esp_hal::system::reset_reason;
@@ -30,18 +30,11 @@ pub struct I2cPins {
     pub scl: AnyPin<'static>,
 }
 
-// Connector UART1
-pub struct UartPins {
-    pub tx: AnyPin<'static>,
-    pub rx: AnyPin<'static>,
-}
-
 // Peripherals handed to the tasks that build their drivers
 pub struct BoardPeripherals {
     pub spi2: SPI2<'static>,
     pub dma0: DMA_CH0<'static>, // for SPI2
     pub i2c0: I2C0<'static>,
-    pub uart0: UART0<'static>,
     pub adc1: ADC1<'static>,
     pub ledc: LEDC<'static>,
     pub mcpwm0: MCPWM0<'static>,
@@ -64,8 +57,6 @@ pub struct Board {
     pub spi: SpiPins,
     // SDA IO17 (pin 10), SCL IO18 (pin 11)
     pub i2c: I2cPins,
-    // TX IO43 (pin 37), RX IO44 (pin 36)
-    pub uart0: UartPins,
     pub peripherals: BoardPeripherals,
 }
 
@@ -125,16 +116,10 @@ impl Board {
             scl: peripherals.GPIO18.degrade(),
         };
 
-        let uart0 = UartPins {
-            tx: peripherals.GPIO43.degrade(),
-            rx: peripherals.GPIO44.degrade(),
-        };
-
         let board_peripherals = BoardPeripherals {
             spi2: peripherals.SPI2,
             dma0: peripherals.DMA_CH0,
             i2c0: peripherals.I2C0,
-            uart0: peripherals.UART0,
             adc1: peripherals.ADC1,
             ledc: peripherals.LEDC,
             mcpwm0: peripherals.MCPWM0,
@@ -152,12 +137,12 @@ impl Board {
             servos,
             spi,
             i2c,
-            uart0,
             peripherals: board_peripherals,
         }
     }
 
     // The panic handler is the only caller of software_reset, so a software reset means we panicked
+    // shortcut: a probe-rs reset reads as CoreSw too and counts as a panic; power-cycle for a clean boot
     pub fn restarted_after_panic() -> bool {
         reset_reason() == Some(SocResetReason::CoreSw)
     }

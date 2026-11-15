@@ -1,1 +1,2 @@
-stack-size-threshold = 1024
+# Core 1's whole stack. Clippy sums every MIR local, so awaited futures inflate async fns well past 1 KB
+stack-size-threshold = 8192

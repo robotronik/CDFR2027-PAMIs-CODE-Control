@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn decode_nop_and_stop() {
         assert_eq!(decode(&frame(0x00, 7, &[])), Ok(Request::Nop));
-        assert_eq!(decode(&frame(0x01, 8, &[])), Ok(Request::Stop));
+        assert_eq!(decode(&frame(0x01, 8, &[])), Ok(Request::Motion(MotionCommand::Stop)));
     }
 
     // TargetPos decodes three little-endian f32s as x, y, theta
@@ -79,11 +79,7 @@ mod tests {
     fn decode_target_pos() {
         assert_eq!(
             decode(&frame(0x02, 1, &f32s([100.0, -50.5, 1.5]))),
-            Ok(Request::TargetPos {
-                x: 100.0,
-                y: -50.5,
-                theta: 1.5
-            })
+            Ok(Request::Motion(MotionCommand::TargetPos { x: 100.0, y: -50.5, theta: 1.5 }))
         );
     }
 
@@ -92,17 +88,11 @@ mod tests {
     fn decode_set_servo() {
         assert_eq!(
             decode(&frame(0x03, 2, &[3, 90])),
-            Ok(Request::SetServo {
-                id: 3,
-                angle_deg: 90
-            })
+            Ok(Request::Servo(ServoCommand::SetAngle { id: 3, angle_deg: 90 }))
         );
         assert_eq!(
             decode(&frame(0x03, 2, &[0, 180])),
-            Ok(Request::SetServo {
-                id: 0,
-                angle_deg: 180
-            })
+            Ok(Request::Servo(ServoCommand::SetAngle { id: 0, angle_deg: 180 }))
         );
     }
 
@@ -111,14 +101,6 @@ mod tests {
     fn decode_rejects_garbage() {
         assert_eq!(decode(&[0x00; FRAME_LEN]), Err(Status::BadMagic));
         assert_eq!(decode(&[0xFF; FRAME_LEN]), Err(Status::BadMagic));
-    }
-
-    // A corrupted CRC gives BadCrc, and the reply still echoes the frame's seq
-    #[test]
-    fn handle_rejects_bad_crc_but_keeps_seq() {
-        let mut f = frame(0x01, 42, &[]);
-        f[15] ^= 0xFF;
-        assert_eq!(handle(&f, &links()), (42, Status::BadCrc));
     }
 
     // Several errors at once report only the first one checked (magic)
@@ -189,7 +171,7 @@ mod tests {
     // Nop is acknowledged and sends nothing to either task
     #[test]
     fn handle_nop_queues_nothing() {
-        assert_eq!(handle(&frame(0x00, 3, &[]), &links()), (3, Status::Ack));
+        assert_eq!(handle(&frame(0x00, 3, &[]), &links()), Status::Ack);
         assert!(MOTION.is_empty() && SERVO.is_empty());
     }
 
@@ -197,38 +179,19 @@ mod tests {
     #[test]
     fn handle_routes_motion_commands() {
         let links = links();
-        assert_eq!(handle(&frame(0x01, 4, &[]), &links), (4, Status::Ack));
-        assert!(matches!(MOTION.try_receive(), Ok(MotionCommand::Stop)));
+        assert_eq!(handle(&frame(0x01, 4, &[]), &links), Status::Ack);
+        assert_eq!(MOTION.try_receive(), Ok(MotionCommand::Stop));
 
-        assert_eq!(
-            handle(&frame(0x02, 5, &f32s([10.0, -20.0, 0.5])), &links),
-            (5, Status::Ack)
-        );
-        assert!(matches!(
-            MOTION.try_receive(),
-            Ok(MotionCommand::TargetPos {
-                x: 10.0,
-                y: -20.0,
-                theta: 0.5
-            })
-        ));
+        assert_eq!(handle(&frame(0x02, 5, &f32s([10.0, -20.0, 0.5])), &links), Status::Ack);
+        assert_eq!(MOTION.try_receive(), Ok(MotionCommand::TargetPos { x: 10.0, y: -20.0, theta: 0.5 }));
         assert!(SERVO.is_empty());
     }
 
     // SetServo is acknowledged and reaches the servo inbox only
     #[test]
     fn handle_routes_servo_commands() {
-        assert_eq!(
-            handle(&frame(0x03, 6, &[2, 45]), &links()),
-            (6, Status::Ack)
-        );
-        assert!(matches!(
-            SERVO.try_receive(),
-            Ok(ServoCommand::SetAngle {
-                id: 2,
-                angle_deg: 45
-            })
-        ));
+        assert_eq!(handle(&frame(0x03, 6, &[2, 45]), &links()), Status::Ack);
+        assert_eq!(SERVO.try_receive(), Ok(ServoCommand::SetAngle { id: 2, angle_deg: 45 }));
         assert!(MOTION.is_empty());
     }
 
@@ -237,7 +200,7 @@ mod tests {
     fn handle_drops_invalid_requests() {
         let mut f = frame(0x01, 7, &[]);
         f[15] ^= 0xFF;
-        assert_eq!(handle(&f, &links()), (7, Status::BadCrc));
+        assert_eq!(handle(&f, &links()), Status::BadCrc);
         assert!(MOTION.is_empty());
     }
 
@@ -248,7 +211,7 @@ mod tests {
             MOTION.try_send(MotionCommand::Stop).unwrap();
         }
         let links = links();
-        assert_eq!(handle(&frame(0x01, 8, &[]), &links), (8, Status::QueueFull));
-        assert_eq!(handle(&frame(0x03, 9, &[0, 90]), &links), (9, Status::Ack));
+        assert_eq!(handle(&frame(0x01, 8, &[]), &links), Status::QueueFull);
+        assert_eq!(handle(&frame(0x03, 9, &[0, 90]), &links), Status::Ack);
     }
 }
