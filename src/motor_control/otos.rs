@@ -5,7 +5,7 @@
 use super::robot_state::RobotPos;
 use crate::board::{Board, I2cPins};
 use core::f32::consts::PI;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer, with_timeout};
 use esp_hal::Async;
 use esp_hal::i2c::master::{Config, Error, I2c};
 use esp_hal::peripherals::I2C0;
@@ -24,6 +24,9 @@ const REG_POSITION: u8 = 0x20;
 // ~2.4 ms per sample, so ~0.6 s with the robot still
 const IMU_CALIBRATION_SAMPLES: u8 = 255;
 const RESET_TRACKING: u8 = 0x01;
+
+// The default esp-hal I2C config never times out; a stuck bus would freeze the control loop
+const READ_TIMEOUT: Duration = Duration::from_millis(5);
 
 // i16 full scale: ±10 m, ±180°, ±5 m/s, ±2000 °/s
 const MM_PER_LSB: f32 = 10_000.0 / 32768.0;
@@ -99,7 +102,8 @@ impl Otos {
 
     pub async fn read_pos(&mut self) -> Result<RobotPos, Error> {
         let mut raw = [0u8; 12];
-        self.i2c.write_read_async(ADDRESS, &[REG_POSITION], &mut raw).await?;
+        let read = self.i2c.write_read_async(ADDRESS, &[REG_POSITION], &mut raw);
+        with_timeout(READ_TIMEOUT, read).await.map_err(|_| Error::Timeout)??;
         Ok(decode_pose(&raw))
     }
 
