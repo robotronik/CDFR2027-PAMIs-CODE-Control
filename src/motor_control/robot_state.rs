@@ -1,6 +1,6 @@
 // MotorControl outbox (latest value only). The watch instance lives in main.rs.
 
-use crate::math_utils::wrap_angle;
+use core::f32::consts::{PI, TAU};
 use core::ops::Sub;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::watch::{self, Watch};
@@ -13,6 +13,16 @@ pub struct RobotPos {
     pub vx: f32,
     pub vy: f32,
     pub omega: f32,
+}
+
+// Radians, wrapped to [-PI, PI)
+pub fn wrap_angle(angle: f32) -> f32 {
+    let wrapped = (angle + PI) % TAU;
+    if wrapped < 0.0 {
+        wrapped + TAU - PI
+    } else {
+        wrapped - PI
+    }
 }
 
 // Theta is wrapped so the error takes the shortest rotation
