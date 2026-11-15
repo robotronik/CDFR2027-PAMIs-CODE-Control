@@ -68,7 +68,7 @@ cargo run --release
 
 Expected serial output on boot:
 ```text
-INFO - Board config start
+INFO - Board config start (reset reason: Some(ChipPowerOn))
 INFO - Board config done
 ```
 
