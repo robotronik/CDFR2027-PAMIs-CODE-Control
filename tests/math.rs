@@ -10,7 +10,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 mod tests {
     use core::f32::consts::{PI, TAU};
     use embassy_time::Duration;
-    use pami_control::motor_control::{RobotPos, calculate_motor_commands, motor_duty, wrap_angle};
+    use pami_control::motor_control::{ControlLoop, RobotPos, motor_duty, wrap_angle};
     use pami_control::servo_control::servo_duty;
     use pami_control::utility::battery_low;
 
@@ -116,7 +116,7 @@ mod tests {
                 theta,
                 ..Default::default()
             };
-            calculate_motor_commands(error, heading, &mut [0.0; 3], Duration::from_ticks(0))
+            ControlLoop::default().calculate_motor_commands(error, heading, Duration::from_ticks(0))
         };
         assert_eq!(cmd(0.0, 100.0, 0.0, 0.0), [100, -50, -50]);
         // Same move seen from a robot turned 90°: the error is now along -x in the world
