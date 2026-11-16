@@ -155,7 +155,6 @@ mod tests {
             x: 1.0,
             y: 2.0,
             theta: -0.5,
-            ..Default::default()
         };
         let f = encode_reply(Status::QueueFull, 0, 9, &pos);
         assert_eq!(&f[0..3], &[MAGIC, 5, 9]);
