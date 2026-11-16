@@ -118,6 +118,21 @@ mod tests {
         assert_eq!(cmd(0.0, 10000.0, 0.0, 0.0), [1000, -500, -500]);
     }
 
+    // I term is capped: a 10 mm y error for 20 s integrates to 200, clamped to 100, so P 10 + I 0.1 * 100 = 20
+    #[test]
+    fn motor_commands_clamp_integral() {
+        let cmd = ControlLoop::default().calculate_motor_commands(
+            RobotPos {
+                y: 10.0,
+                ..Default::default()
+            },
+            RobotVel::default(),
+            0.0,
+            Duration::from_secs(20),
+        );
+        assert_eq!(cmd, [20, -10, -10]);
+    }
+
     // D term damps: moving +y at 1000 mm/s with no error (KD = 0.1) pushes back like a -100 mm y error
     #[test]
     fn motor_commands_damp_velocity() {
