@@ -2,11 +2,13 @@ use super::motor_commands::{MotionCommand, MotionCommandReceiver};
 use super::otos::Otos;
 use super::robot_state::{RobotPos, RobotPosSender};
 use crate::board::DcMotorPins;
+use core::f32::consts::PI;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Instant, Ticker};
 use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
 use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
+use libm::{cosf, roundf, sinf};
 use log::{debug, info, warn};
 
 const CONTROL_PERIOD: Duration = Duration::from_millis(20);
@@ -22,14 +24,44 @@ pub fn motor_duty(command: i16) -> (u16, u16) {
     if command >= 0 { (duty, 0) } else { (0, duty) }
 }
 
-// Returns one signed duty per motor, in -PWM_PERIOD..=PWM_PERIOD
-// delta_pos is in the world frame (OTOS): rotate by -theta before mapping to wheels
-fn calculate_motor_commands(_delta_pos: RobotPos, dt: Duration) -> [i16; 3] {
-    let _dt_s = dt.as_micros() as f32 * 1e-6;
+// Gains map mm of wheel travel to duty (TODO: calibrate)
+const KP: f32 = 1.0;
+const KI: f32 = 0.1;
+const KD: f32 = 0.1;
+// Anti-windup clamp, in mm.s
+const INTEGRAL_LIMIT: f32 = 100.0;
+// Robot centre to wheel contact, in mm (TODO: measure)
+const WHEEL_DISTANCE: f32 = 1.0;
+// Motor i sits at this angle in the robot frame, CCW from the robot x axis (TODO: check order and spin sign)
+const WHEEL_ANGLES: [f32; 3] = [0.0, 2.0 * PI / 3.0, 4.0 * PI / 3.0];
 
-    let commands: [i16; 3] = [0; 3];
+// PID per world axis (x, y, theta), then projected onto the three omni wheels.
+// error = target - current, so with a still target error.vx/vy/omega is the error derivative.
+// integral is the PID state carried between ticks, heading is the current theta.
+pub fn calculate_motor_commands(
+    error: RobotPos,
+    heading: f32,
+    integral: &mut [f32; 3],
+    dt: Duration,
+) -> [i16; 3] {
+    let dt_s = dt.as_micros() as f32 * 1e-6;
 
-    commands
+    // Theta scaled to wheel travel so one set of gains fits all three axes
+    let p = [error.x, error.y, error.theta * WHEEL_DISTANCE];
+    let d = [error.vx, error.vy, error.omega * WHEEL_DISTANCE];
+    let mut u = [0.0; 3];
+    for i in 0..3 {
+        integral[i] = (integral[i] + p[i] * dt_s).clamp(-INTEGRAL_LIMIT, INTEGRAL_LIMIT);
+        u[i] = KP * p[i] + KI * integral[i] + KD * d[i];
+    }
+
+    // Wheel i pushes along the tangent of its world angle; rotation adds equally to all wheels
+    let wheels = WHEEL_ANGLES.map(|a| -sinf(a + heading) * u[0] + cosf(a + heading) * u[1] + u[2]);
+
+    // Scale all wheels together when one saturates, so the direction is kept
+    let max = wheels.iter().fold(0.0f32, |m, w| m.max(w.abs()));
+    let scale = (PWM_PERIOD as f32 / max).min(1.0);
+    wheels.map(|w| roundf(w * scale) as i16)
 }
 
 #[embassy_executor::task]
@@ -88,6 +120,7 @@ async fn run_motor_control(
     // holds where it is: after a warm restart the OTOS pose is kept and origin may be far away.
     let mut stop_pending = true;
     let mut otos_ok = true;
+    let mut integral = [0.0; 3];
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
     let mut last_read_time = Instant::now();
@@ -99,10 +132,19 @@ async fn run_motor_control(
         while let Ok(command) = command_receiver.try_receive() {
             debug!("MotorControl (Core 1) received command: {:?}", command);
             match command {
-                MotionCommand::Stop => stop_pending = true,
+                MotionCommand::Stop => {
+                    stop_pending = true;
+                    integral = [0.0; 3];
+                }
                 MotionCommand::TargetPos { x, y, theta } => {
-                    target_pos = RobotPos { x, y, theta, ..Default::default() };
+                    target_pos = RobotPos {
+                        x,
+                        y,
+                        theta,
+                        ..Default::default()
+                    };
                     stop_pending = false;
+                    integral = [0.0; 3];
                 }
             }
         }
@@ -123,6 +165,7 @@ async fn run_motor_control(
                 continue;
             }
         };
+
         if !otos_ok {
             info!("MotorControl: OTOS reads recovered");
             otos_ok = true;
@@ -130,7 +173,12 @@ async fn run_motor_control(
 
         // Brake, then hold the pose where the robot was when Stop arrived
         if stop_pending {
-            target_pos = RobotPos { vx: 0.0, vy: 0.0, omega: 0.0, ..current_pos };
+            target_pos = RobotPos {
+                vx: 0.0,
+                vy: 0.0,
+                omega: 0.0,
+                ..current_pos
+            };
             stop_pending = false;
         }
 
@@ -138,7 +186,12 @@ async fn run_motor_control(
         let dt = (read_time - last_read_time).min(MAX_DT);
         last_read_time = read_time;
 
-        let commands = calculate_motor_commands(target_pos - current_pos, dt);
+        let commands = calculate_motor_commands(
+            target_pos - current_pos,
+            current_pos.theta,
+            &mut integral,
+            dt,
+        );
         set_duties(commands.map(motor_duty));
 
         pos_sender.send(current_pos);

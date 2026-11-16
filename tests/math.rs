@@ -9,7 +9,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 #[embedded_test::tests(executor = esp_rtos::embassy::Executor::new())]
 mod tests {
     use core::f32::consts::{PI, TAU};
-    use pami_control::motor_control::{RobotPos, motor_duty, wrap_angle};
+    use embassy_time::Duration;
+    use pami_control::motor_control::{RobotPos, calculate_motor_commands, motor_duty, wrap_angle};
     use pami_control::servo_control::servo_duty;
     use pami_control::utility::battery_low;
 
@@ -103,6 +104,28 @@ mod tests {
         assert_eq!(servo_duty(90), 1228);
         assert_eq!(servo_duty(180), 2048);
         assert_eq!(servo_duty(200), servo_duty(180));
+    }
+
+    // Zero dt and velocity leave only P (KP = 1): wheels at 0/120/240° split a +y error 1 : -1/2 : -1/2
+    #[test]
+    fn motor_commands_project_error_on_wheels() {
+        let cmd = |x, y, theta, heading| {
+            let error = RobotPos {
+                x,
+                y,
+                theta,
+                ..Default::default()
+            };
+            calculate_motor_commands(error, heading, &mut [0.0; 3], Duration::from_ticks(0))
+        };
+        assert_eq!(cmd(0.0, 100.0, 0.0, 0.0), [100, -50, -50]);
+        // Same move seen from a robot turned 90°: the error is now along -x in the world
+        assert_eq!(cmd(-100.0, 0.0, 0.0, PI / 2.0), [100, -50, -50]);
+        // Pure rotation drives all wheels the same way
+        let [a, b, c] = cmd(0.0, 0.0, 1.0, 0.0);
+        assert!(a == b && b == c && a != 0);
+        // Saturation scales all wheels together, keeping the ratio
+        assert_eq!(cmd(0.0, 10000.0, 0.0, 0.0), [1000, -500, -500]);
     }
 
     // Goes low below 7000 mV, only recovers at 7200 mV or more

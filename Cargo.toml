@@ -43,6 +43,7 @@ embassy-sync     = "0.8.0"
 static_cell      = "2.1.1"
 esp-println = { version = "0.18.0", features = ["esp32s3", "log-04"] }
 log         = "0.4"
+libm        = "0.2"
 
 # embedded-test's macro emits #[cfg(rust_analyzer)]
 [lints.rust]
