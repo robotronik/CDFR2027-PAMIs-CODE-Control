@@ -2,7 +2,7 @@
 // Robotronik board running the SparkFun OTOS firmware, see
 // https://github.com/robotronik/Optical_Tracking_Odometry_Sensor (Firmware/SFE/Inc/registers.h)
 
-use super::robot_state::RobotPos;
+use super::robot_state::{RobotPos, RobotVel};
 use crate::board::{Board, I2cPins};
 use core::f32::consts::PI;
 use embassy_time::{Duration, Timer, with_timeout};
@@ -35,16 +35,19 @@ const MM_S_PER_LSB: f32 = 5_000.0 / 32768.0;
 const RAD_S_PER_LSB: f32 = 2000.0 * PI / 180.0 / 32768.0;
 
 // World frame: x forward and y left at reset, theta counter-clockwise
-pub fn decode_pose(raw: &[u8; 12]) -> RobotPos {
+pub fn decode_pose(raw: &[u8; 12]) -> (RobotPos, RobotVel) {
     let at = |i: usize| i16::from_le_bytes([raw[i], raw[i + 1]]) as f32;
-    RobotPos {
+    let pos = RobotPos {
         x: at(0) * MM_PER_LSB,
         y: at(2) * MM_PER_LSB,
         theta: at(4) * RAD_PER_LSB,
+    };
+    let vel = RobotVel {
         vx: at(6) * MM_S_PER_LSB,
         vy: at(8) * MM_S_PER_LSB,
         omega: at(10) * RAD_S_PER_LSB,
-    }
+    };
+    (pos, vel)
 }
 
 pub struct Otos {
@@ -100,7 +103,7 @@ impl Otos {
         self.write_reg(REG_RESET, RESET_TRACKING).await
     }
 
-    pub async fn read_pos(&mut self) -> Result<RobotPos, Error> {
+    pub async fn read_pos(&mut self) -> Result<(RobotPos, RobotVel), Error> {
         let mut raw = [0u8; 12];
         let read = self.i2c.write_read_async(ADDRESS, &[REG_POSITION], &mut raw);
         with_timeout(READ_TIMEOUT, read).await.map_err(|_| Error::Timeout)??;

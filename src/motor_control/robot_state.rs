@@ -10,6 +10,11 @@ pub struct RobotPos {
     pub x: f32,
     pub y: f32,
     pub theta: f32,
+}
+
+// mm/s and rad/s, world frame
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RobotVel {
     pub vx: f32,
     pub vy: f32,
     pub omega: f32,
@@ -34,9 +39,6 @@ impl Sub for RobotPos {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
             theta: wrap_angle(self.theta - rhs.theta),
-            vx: self.vx - rhs.vx,
-            vy: self.vy - rhs.vy,
-            omega: self.omega - rhs.omega,
         }
     }
 }

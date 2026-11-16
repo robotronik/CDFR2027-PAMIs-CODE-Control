@@ -10,7 +10,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 mod tests {
     use core::f32::consts::{PI, TAU};
     use embassy_time::Duration;
-    use pami_control::motor_control::{ControlLoop, RobotPos, motor_duty, wrap_angle};
+    use pami_control::motor_control::{ControlLoop, RobotPos, RobotVel, motor_duty, wrap_angle};
     use pami_control::servo_control::servo_duty;
     use pami_control::utility::battery_low;
 
@@ -53,32 +53,23 @@ mod tests {
         assert_close(wrap_angle(-TAU - 0.5), -0.5);
     }
 
-    // Pose difference: x/y/velocities subtract plainly, theta takes the short way across ±pi (6 - 2pi, not 6)
+    // Pose difference: x/y subtract plainly, theta takes the short way across ±pi (6 - 2pi, not 6)
     #[test]
     fn robot_pos_sub_takes_shortest_rotation() {
         let a = RobotPos {
             x: 1.0,
             y: 2.0,
             theta: 3.0,
-            vx: 0.5,
-            vy: 0.0,
-            omega: 1.0,
         };
         let b = RobotPos {
             x: 0.5,
             y: 3.0,
             theta: -3.0,
-            vx: 0.0,
-            vy: 0.5,
-            omega: 0.0,
         };
         let d = a - b;
         assert_close(d.x, 0.5);
         assert_close(d.y, -1.0);
         assert_close(d.theta, 6.0 - TAU);
-        assert_close(d.vx, 0.5);
-        assert_close(d.vy, -0.5);
-        assert_close(d.omega, 1.0);
     }
 
     // Positive speed drives IN1, negative drives IN2, zero leaves both at 0
@@ -110,13 +101,12 @@ mod tests {
     #[test]
     fn motor_commands_project_error_on_wheels() {
         let cmd = |x, y, theta, heading| {
-            let error = RobotPos {
-                x,
-                y,
-                theta,
-                ..Default::default()
-            };
-            ControlLoop::default().calculate_motor_commands(error, heading, Duration::from_ticks(0))
+            ControlLoop::default().calculate_motor_commands(
+                RobotPos { x, y, theta },
+                RobotVel::default(),
+                heading,
+                Duration::from_ticks(0),
+            )
         };
         assert_eq!(cmd(0.0, 100.0, 0.0, 0.0), [100, -50, -50]);
         // Same move seen from a robot turned 90°: the error is now along -x in the world
@@ -126,6 +116,22 @@ mod tests {
         assert!(a == b && b == c && a != 0);
         // Saturation scales all wheels together, keeping the ratio
         assert_eq!(cmd(0.0, 10000.0, 0.0, 0.0), [1000, -500, -500]);
+    }
+
+    // D term damps: moving +y at 1000 mm/s with no error (KD = 0.1) pushes back like a -100 mm y error
+    #[test]
+    fn motor_commands_damp_velocity() {
+        let velocity = RobotVel {
+            vy: 1000.0,
+            ..Default::default()
+        };
+        let cmd = ControlLoop::default().calculate_motor_commands(
+            RobotPos::default(),
+            velocity,
+            0.0,
+            Duration::from_ticks(0),
+        );
+        assert_eq!(cmd, [-100, 50, 50]);
     }
 
     // Goes low below 7000 mV, only recovers at 7200 mV or more

@@ -7,4 +7,4 @@ mod robot_state;
 pub use motor_commands::{MotionCommand, MotionCommandChannel, MotionCommandSender};
 pub use motors::{ControlLoop, MotorControlTask, motor_duty};
 pub use otos::{Otos, decode_pose};
-pub use robot_state::{RobotPos, RobotPosReceiver, RobotPosWatch, wrap_angle};
+pub use robot_state::{RobotPos, RobotPosReceiver, RobotPosWatch, RobotVel, wrap_angle};

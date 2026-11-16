@@ -1,6 +1,6 @@
 use super::motor_commands::{MotionCommand, MotionCommandReceiver};
 use super::otos::Otos;
-use super::robot_state::{RobotPos, RobotPosSender};
+use super::robot_state::{RobotPos, RobotPosSender, RobotVel};
 use crate::board::DcMotorPins;
 use core::f32::consts::PI;
 use embassy_executor::Spawner;
@@ -10,19 +10,6 @@ use esp_hal::peripherals::MCPWM0;
 use esp_hal::time::Rate;
 use libm::{cosf, roundf, sinf};
 use log::{debug, info, warn};
-
-const CONTROL_PERIOD: Duration = Duration::from_millis(20);
-const MAX_DT: Duration = Duration::from_millis(50);
-
-const PWM_FREQ: Rate = Rate::from_khz(20);
-// Timer counts 0..PWM_PERIOD-1, so a timestamp of PWM_PERIOD is 100 % duty
-const PWM_PERIOD: u16 = 1000;
-
-// DRV8871 sign-magnitude: (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
-pub fn motor_duty(command: i16) -> (u16, u16) {
-    let duty = command.unsigned_abs().min(PWM_PERIOD);
-    if command >= 0 { (duty, 0) } else { (0, duty) }
-}
 
 // PID per world axis (x, y, theta), then projected onto the three omni wheels
 #[derive(Default)]
@@ -47,11 +34,12 @@ impl ControlLoop {
         self.error_integral = [0.0; 3];
     }
 
-    // error = target - current, so with a still target error.vx/vy/omega is the error derivative.
+    // error = target - current. Targets are still, so the error derivative is -velocity.
     // current_heading is needed on top of the error: it says which world direction each wheel faces.
     pub fn calculate_motor_commands(
         &mut self,
         error: RobotPos,
+        velocity: RobotVel,
         current_heading: f32,
         dt: Duration,
     ) -> [i16; 3] {
@@ -59,7 +47,11 @@ impl ControlLoop {
 
         // Theta scaled to wheel travel so one set of gains fits all three axes
         let position_error = [error.x, error.y, error.theta * Self::WHEEL_DISTANCE];
-        let velocity_error = [error.vx, error.vy, error.omega * Self::WHEEL_DISTANCE];
+        let velocity_error = [
+            -velocity.vx,
+            -velocity.vy,
+            -velocity.omega * Self::WHEEL_DISTANCE,
+        ];
         let mut axis_command = [0.0; 3];
         for axis in 0..3 {
             self.error_integral[axis] = (self.error_integral[axis] + position_error[axis] * dt_s)
@@ -83,6 +75,19 @@ impl ControlLoop {
         let scale = (PWM_PERIOD as f32 / largest).min(1.0);
         wheel_commands.map(|command| roundf(command * scale) as i16)
     }
+}
+
+const CONTROL_PERIOD: Duration = Duration::from_millis(20);
+const MAX_DT: Duration = Duration::from_millis(50);
+
+const PWM_FREQ: Rate = Rate::from_khz(20);
+// Timer counts 0..PWM_PERIOD-1, so a timestamp of PWM_PERIOD is 100 % duty
+const PWM_PERIOD: u16 = 1000;
+
+// DRV8871 sign-magnitude: (IN1, IN2) duty, PWM on IN1 forward, on IN2 backward
+pub fn motor_duty(command: i16) -> (u16, u16) {
+    let duty = command.unsigned_abs().min(PWM_PERIOD);
+    if command >= 0 { (duty, 0) } else { (0, duty) }
 }
 
 #[embassy_executor::task]
@@ -158,12 +163,7 @@ async fn run_motor_control(
                     control_loop.reset();
                 }
                 MotionCommand::TargetPos { x, y, theta } => {
-                    target_pos = RobotPos {
-                        x,
-                        y,
-                        theta,
-                        ..Default::default()
-                    };
+                    target_pos = RobotPos { x, y, theta };
                     stop_pending = false;
                     control_loop.reset();
                 }
@@ -171,8 +171,8 @@ async fn run_motor_control(
         }
 
         let read_time = Instant::now();
-        let current_pos = match otos.read_pos().await {
-            Ok(pos) => pos,
+        let (current_pos, current_vel) = match otos.read_pos().await {
+            Ok(reading) => reading,
             Err(err) => {
                 // Steering on a stale position is worse than braking for a tick
                 if otos_ok {
@@ -194,12 +194,7 @@ async fn run_motor_control(
 
         // Brake, then hold the pose where the robot was when Stop arrived
         if stop_pending {
-            target_pos = RobotPos {
-                vx: 0.0,
-                vy: 0.0,
-                omega: 0.0,
-                ..current_pos
-            };
+            target_pos = current_pos;
             stop_pending = false;
         }
 
@@ -207,8 +202,12 @@ async fn run_motor_control(
         let dt = (read_time - last_read_time).min(MAX_DT);
         last_read_time = read_time;
 
-        let commands =
-            control_loop.calculate_motor_commands(target_pos - current_pos, current_pos.theta, dt);
+        let commands = control_loop.calculate_motor_commands(
+            target_pos - current_pos,
+            current_vel,
+            current_pos.theta,
+            dt,
+        );
         set_duties(commands.map(motor_duty));
 
         pos_sender.send(current_pos);
