@@ -29,9 +29,14 @@ pub fn battery_low(was_low: bool, battery_mv: u32) -> bool {
 }
 
 #[embassy_executor::task]
-async fn run_battery_monitor(battery_pin: GPIO1<'static>, adc1: ADC1<'static>, low_sender: BatteryLowSender) {
+async fn run_battery_monitor(
+    battery_pin: GPIO1<'static>,
+    adc1: ADC1<'static>,
+    low_sender: BatteryLowSender,
+) {
     let mut config = AdcConfig::new();
-    let mut pin = config.enable_pin_with_cal::<_, AdcCalCurve<ADC1>>(battery_pin, Attenuation::_11dB);
+    let mut pin =
+        config.enable_pin_with_cal::<_, AdcCalCurve<ADC1>>(battery_pin, Attenuation::_11dB);
     let mut adc = Adc::new(adc1, config).into_async();
 
     let mut low = false;

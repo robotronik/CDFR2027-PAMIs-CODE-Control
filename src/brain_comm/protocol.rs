@@ -33,7 +33,11 @@ pub fn crc8(bytes: &[u8]) -> u8 {
     for &byte in bytes {
         crc ^= byte;
         for _ in 0..8 {
-            crc = if crc & 0x80 != 0 { (crc << 1) ^ 0x07 } else { crc << 1 };
+            crc = if crc & 0x80 != 0 {
+                (crc << 1) ^ 0x07
+            } else {
+                crc << 1
+            };
         }
     }
     crc
@@ -57,7 +61,10 @@ pub fn decode(frame: &Frame) -> Result<Request, Status> {
             theta: read_f32(data, 8)?,
         })),
         0x03 if (data[0] as usize) < SERVO_COUNT && data[1] <= 180 => {
-            Ok(Request::Servo(ServoCommand::SetAngle { id: data[0], angle_deg: data[1] }))
+            Ok(Request::Servo(ServoCommand::SetAngle {
+                id: data[0],
+                angle_deg: data[1],
+            }))
         }
         0x03 => Err(Status::BadArgument),
         _ => Err(Status::UnknownOpcode),
@@ -66,7 +73,11 @@ pub fn decode(frame: &Frame) -> Result<Request, Status> {
 
 fn read_f32(data: &[u8], at: usize) -> Result<f32, Status> {
     let value = f32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]);
-    if value.is_finite() { Ok(value) } else { Err(Status::BadArgument) }
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(Status::BadArgument)
+    }
 }
 
 // Reply status byte: bits 0-4 Status code, bits 5-7 flags OR-ed in by the caller

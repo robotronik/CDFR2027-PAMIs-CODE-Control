@@ -9,7 +9,9 @@ esp_bootloader_esp_idf::esp_app_desc!();
 #[embedded_test::tests(executor = esp_rtos::embassy::Executor::new())]
 mod tests {
     use embassy_time::Timer;
-    use esp_hal::mcpwm::{McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode};
+    use esp_hal::mcpwm::{
+        McPwm, PeripheralClockConfig, operator::PwmPinConfig, timer::PwmWorkingMode,
+    };
     use esp_hal::peripherals::{GPIO, IO_MUX};
     use esp_hal::time::Rate;
     use pami_control::board::Board;
@@ -48,10 +50,16 @@ mod tests {
         // Same 100 % duty as motor_duty(1000)
         pwm.0.set_timestamp(1000);
         Timer::after_millis(1).await;
-        assert!(motor0_in1_level_is_high(), "PWM didn't drive IN1 high, test setup is wrong");
+        assert!(
+            motor0_in1_level_is_high(),
+            "PWM didn't drive IN1 high, test setup is wrong"
+        );
 
         Board::stop_motors_after_panic();
         Timer::after_millis(1).await;
-        assert!(!motor0_in1_level_is_high(), "IN1 still high after stop_motors_after_panic");
+        assert!(
+            !motor0_in1_level_is_high(),
+            "IN1 still high after stop_motors_after_panic"
+        );
     }
 }

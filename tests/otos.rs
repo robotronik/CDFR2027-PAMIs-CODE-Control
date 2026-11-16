@@ -13,7 +13,12 @@ mod tests {
     use pami_control::motor_control::{Otos, decode_pose};
 
     fn assert_close(actual: f32, expected: f32) {
-        assert!((actual - expected).abs() < 1e-3, "{} != {}", actual, expected);
+        assert!(
+            (actual - expected).abs() < 1e-3,
+            "{} != {}",
+            actual,
+            expected
+        );
     }
 
     fn raw(values: [i16; 6]) -> [u8; 12] {
@@ -34,7 +39,10 @@ mod tests {
     #[test]
     fn decode_pose_zero() {
         let (pos, vel) = decode_pose(&[0; 12]);
-        assert_eq!((pos.x, pos.y, pos.theta, vel.vx, vel.vy, vel.omega), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        assert_eq!(
+            (pos.x, pos.y, pos.theta, vel.vx, vel.vy, vel.omega),
+            (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        );
     }
 
     // Most negative raw values decode to the sensor limits: -10 m, -pi, -5 m/s, -2000 °/s
@@ -70,6 +78,10 @@ mod tests {
         otos.init().await;
         let (pos, _) = otos.read_pos().await.expect("OTOS read failed");
         // Robot still on the bench: tracking was just reset
-        assert!(pos.x.abs() < 5.0 && pos.y.abs() < 5.0 && pos.theta.abs() < 0.02, "{:?}", pos);
+        assert!(
+            pos.x.abs() < 5.0 && pos.y.abs() < 5.0 && pos.theta.abs() < 0.02,
+            "{:?}",
+            pos
+        );
     }
 }

@@ -42,7 +42,11 @@ async fn run_servo_control(
     let make_channel = |number, pin| {
         let mut channel = ledc.channel(number, pin);
         channel
-            .configure(channel::config::Config { timer: &pwm_timer, duty_pct: 0, drive_mode: DriveMode::PushPull })
+            .configure(channel::config::Config {
+                timer: &pwm_timer,
+                duty_pct: 0,
+                drive_mode: DriveMode::PushPull,
+            })
             .unwrap();
         channel
     };

@@ -1,5 +1,6 @@
 use super::protocol::{
-    BATTERY_LOW_FLAG, FRAME_LEN, Frame, ODOMETRY_NOT_READY_FLAG, RESTARTED_FLAG, Request, Status, decode, encode_reply,
+    BATTERY_LOW_FLAG, FRAME_LEN, Frame, ODOMETRY_NOT_READY_FLAG, RESTARTED_FLAG, Request, Status,
+    decode, encode_reply,
 };
 use crate::board::{Board, SpiPins};
 use crate::motor_control::{MotionCommand, MotionCommandSender, RobotPosReceiver};
@@ -37,8 +38,18 @@ struct SpiLink {
 // One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it.
 // Sends Stop (brake and hold) once if no valid frame came for BRAIN_TIMEOUT.
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
-async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender, last_valid: Instant) -> (SpiLink, Frame) {
-    let SpiLink { spi, rx, mut tx, mut handshake } = link;
+async fn exchange(
+    link: SpiLink,
+    reply: &Frame,
+    motion: &MotionCommandSender,
+    last_valid: Instant,
+) -> (SpiLink, Frame) {
+    let SpiLink {
+        spi,
+        rx,
+        mut tx,
+        mut handshake,
+    } = link;
     tx.fill(reply);
     let transfer = match spi.transfer(FRAME_LEN, rx, FRAME_LEN, tx) {
         Ok(transfer) => transfer,
@@ -49,8 +60,14 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender, la
     // The slave driver has no async API, so poll instead of blocking Core 0
     while !transfer.is_done() {
         // Retried each poll while the inbox is full
-        if !stopped && last_valid.elapsed() > BRAIN_TIMEOUT && motion.try_send(MotionCommand::Stop).is_ok() {
-            warn!("BrainComm: no valid frame for {} ms, stopping and holding position", BRAIN_TIMEOUT.as_millis());
+        if !stopped
+            && last_valid.elapsed() > BRAIN_TIMEOUT
+            && motion.try_send(MotionCommand::Stop).is_ok()
+        {
+            warn!(
+                "BrainComm: no valid frame for {} ms, stopping and holding position",
+                BRAIN_TIMEOUT.as_millis()
+            );
             stopped = true;
         }
         Timer::after_micros(100).await;
@@ -59,7 +76,15 @@ async fn exchange(link: SpiLink, reply: &Frame, motion: &MotionCommandSender, la
     handshake.set_low();
 
     let request = rx.as_slice()[..FRAME_LEN].try_into().unwrap();
-    (SpiLink { spi, rx, tx, handshake }, request)
+    (
+        SpiLink {
+            spi,
+            rx,
+            tx,
+            handshake,
+        },
+        request,
+    )
 }
 
 // Decodes a request and forwards it to its task; returns the status for the next reply
@@ -113,7 +138,11 @@ async fn run_brain_comm(
     loop {
         // The pos watch stays empty until MotorControl's first OTOS read
         let pos = links.robot_pos.try_get();
-        let mut flags = if pos.is_none() { ODOMETRY_NOT_READY_FLAG } else { 0 };
+        let mut flags = if pos.is_none() {
+            ODOMETRY_NOT_READY_FLAG
+        } else {
+            0
+        };
         if links.battery_low.try_get() == Some(true) {
             flags |= BATTERY_LOW_FLAG;
         }

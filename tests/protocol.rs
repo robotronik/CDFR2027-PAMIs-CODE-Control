@@ -11,8 +11,8 @@ mod tests {
     use embassy_sync::channel::Channel;
     use embassy_sync::watch::Watch;
     use pami_control::brain_comm::{
-        BATTERY_LOW_FLAG, ODOMETRY_NOT_READY_FLAG, RESTARTED_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, Request, Status, crc8, decode, encode_reply,
-        handle,
+        BATTERY_LOW_FLAG, BrainCommLinks, FRAME_LEN, Frame, MAGIC, ODOMETRY_NOT_READY_FLAG,
+        RESTARTED_FLAG, Request, Status, crc8, decode, encode_reply, handle,
     };
     use pami_control::motor_control::{
         MotionCommand, MotionCommandChannel, RobotPos, RobotPosWatch,
@@ -71,7 +71,10 @@ mod tests {
     #[test]
     fn decode_nop_and_stop() {
         assert_eq!(decode(&frame(0x00, 7, &[])), Ok(Request::Nop));
-        assert_eq!(decode(&frame(0x01, 8, &[])), Ok(Request::Motion(MotionCommand::Stop)));
+        assert_eq!(
+            decode(&frame(0x01, 8, &[])),
+            Ok(Request::Motion(MotionCommand::Stop))
+        );
     }
 
     // TargetPos decodes three little-endian f32s as x, y, theta
@@ -79,7 +82,11 @@ mod tests {
     fn decode_target_pos() {
         assert_eq!(
             decode(&frame(0x02, 1, &f32s([100.0, -50.5, 1.5]))),
-            Ok(Request::Motion(MotionCommand::TargetPos { x: 100.0, y: -50.5, theta: 1.5 }))
+            Ok(Request::Motion(MotionCommand::TargetPos {
+                x: 100.0,
+                y: -50.5,
+                theta: 1.5
+            }))
         );
     }
 
@@ -88,11 +95,17 @@ mod tests {
     fn decode_set_servo() {
         assert_eq!(
             decode(&frame(0x03, 2, &[3, 90])),
-            Ok(Request::Servo(ServoCommand::SetAngle { id: 3, angle_deg: 90 }))
+            Ok(Request::Servo(ServoCommand::SetAngle {
+                id: 3,
+                angle_deg: 90
+            }))
         );
         assert_eq!(
             decode(&frame(0x03, 2, &[0, 180])),
-            Ok(Request::Servo(ServoCommand::SetAngle { id: 0, angle_deg: 180 }))
+            Ok(Request::Servo(ServoCommand::SetAngle {
+                id: 0,
+                angle_deg: 180
+            }))
         );
     }
 
@@ -131,14 +144,8 @@ mod tests {
                 Err(Status::BadArgument)
             );
         }
-        assert_eq!(
-            decode(&frame(0x03, 0, &[0, 181])),
-            Err(Status::BadArgument)
-        );
-        assert_eq!(
-            decode(&frame(0x03, 0, &[4, 90])),
-            Err(Status::BadArgument)
-        );
+        assert_eq!(decode(&frame(0x03, 0, &[0, 181])), Err(Status::BadArgument));
+        assert_eq!(decode(&frame(0x03, 0, &[4, 90])), Err(Status::BadArgument));
     }
 
     // Reply bytes: magic, status, seq, x/y/theta as LE f32, then a valid CRC
@@ -182,8 +189,18 @@ mod tests {
         assert_eq!(handle(&frame(0x01, 4, &[]), &links), Status::Ack);
         assert_eq!(MOTION.try_receive(), Ok(MotionCommand::Stop));
 
-        assert_eq!(handle(&frame(0x02, 5, &f32s([10.0, -20.0, 0.5])), &links), Status::Ack);
-        assert_eq!(MOTION.try_receive(), Ok(MotionCommand::TargetPos { x: 10.0, y: -20.0, theta: 0.5 }));
+        assert_eq!(
+            handle(&frame(0x02, 5, &f32s([10.0, -20.0, 0.5])), &links),
+            Status::Ack
+        );
+        assert_eq!(
+            MOTION.try_receive(),
+            Ok(MotionCommand::TargetPos {
+                x: 10.0,
+                y: -20.0,
+                theta: 0.5
+            })
+        );
         assert!(SERVO.is_empty());
     }
 
@@ -191,7 +208,13 @@ mod tests {
     #[test]
     fn handle_routes_servo_commands() {
         assert_eq!(handle(&frame(0x03, 6, &[2, 45]), &links()), Status::Ack);
-        assert_eq!(SERVO.try_receive(), Ok(ServoCommand::SetAngle { id: 2, angle_deg: 45 }));
+        assert_eq!(
+            SERVO.try_receive(),
+            Ok(ServoCommand::SetAngle {
+                id: 2,
+                angle_deg: 45
+            })
+        );
         assert!(MOTION.is_empty());
     }
 

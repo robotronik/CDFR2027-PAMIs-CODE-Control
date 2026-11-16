@@ -91,7 +91,8 @@ impl Otos {
     }
 
     async fn calibrate_and_reset(&mut self) -> Result<(), Error> {
-        self.write_reg(REG_IMU_CALIBRATION, IMU_CALIBRATION_SAMPLES).await?;
+        self.write_reg(REG_IMU_CALIBRATION, IMU_CALIBRATION_SAMPLES)
+            .await?;
         // Bounded: if the IMU stops answering, the firmware aborts with the counter stuck above 0
         for _ in 0..200 {
             if self.read_reg(REG_IMU_CALIBRATION).await? == 0 {
@@ -105,14 +106,20 @@ impl Otos {
 
     pub async fn read_pos(&mut self) -> Result<(RobotPos, RobotVel), Error> {
         let mut raw = [0u8; 12];
-        let read = self.i2c.write_read_async(ADDRESS, &[REG_POSITION], &mut raw);
-        with_timeout(READ_TIMEOUT, read).await.map_err(|_| Error::Timeout)??;
+        let read = self
+            .i2c
+            .write_read_async(ADDRESS, &[REG_POSITION], &mut raw);
+        with_timeout(READ_TIMEOUT, read)
+            .await
+            .map_err(|_| Error::Timeout)??;
         Ok(decode_pose(&raw))
     }
 
     async fn read_reg(&mut self, reg: u8) -> Result<u8, Error> {
         let mut value = [0u8];
-        self.i2c.write_read_async(ADDRESS, &[reg], &mut value).await?;
+        self.i2c
+            .write_read_async(ADDRESS, &[reg], &mut value)
+            .await?;
         Ok(value[0])
     }
 
