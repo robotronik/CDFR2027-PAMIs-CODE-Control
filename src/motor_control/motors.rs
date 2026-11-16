@@ -37,31 +37,39 @@ const WHEEL_ANGLES: [f32; 3] = [0.0, 2.0 * PI / 3.0, 4.0 * PI / 3.0];
 
 // PID per world axis (x, y, theta), then projected onto the three omni wheels.
 // error = target - current, so with a still target error.vx/vy/omega is the error derivative.
-// integral is the PID state carried between ticks, heading is the current theta.
+// current_heading is needed on top of the error: it says which world direction each wheel faces.
 pub fn calculate_motor_commands(
     error: RobotPos,
-    heading: f32,
-    integral: &mut [f32; 3],
+    current_heading: f32,
+    error_integral: &mut [f32; 3],
     dt: Duration,
 ) -> [i16; 3] {
     let dt_s = dt.as_micros() as f32 * 1e-6;
 
     // Theta scaled to wheel travel so one set of gains fits all three axes
-    let p = [error.x, error.y, error.theta * WHEEL_DISTANCE];
-    let d = [error.vx, error.vy, error.omega * WHEEL_DISTANCE];
-    let mut u = [0.0; 3];
-    for i in 0..3 {
-        integral[i] = (integral[i] + p[i] * dt_s).clamp(-INTEGRAL_LIMIT, INTEGRAL_LIMIT);
-        u[i] = KP * p[i] + KI * integral[i] + KD * d[i];
+    let position_error = [error.x, error.y, error.theta * WHEEL_DISTANCE];
+    let velocity_error = [error.vx, error.vy, error.omega * WHEEL_DISTANCE];
+    let mut axis_command = [0.0; 3];
+    for axis in 0..3 {
+        error_integral[axis] = (error_integral[axis] + position_error[axis] * dt_s)
+            .clamp(-INTEGRAL_LIMIT, INTEGRAL_LIMIT);
+        axis_command[axis] =
+            KP * position_error[axis] + KI * error_integral[axis] + KD * velocity_error[axis];
     }
+    let [x_command, y_command, rotation_command] = axis_command;
 
-    // Wheel i pushes along the tangent of its world angle; rotation adds equally to all wheels
-    let wheels = WHEEL_ANGLES.map(|a| -sinf(a + heading) * u[0] + cosf(a + heading) * u[1] + u[2]);
+    // Each wheel pushes along the tangent of its world angle; rotation adds equally to all wheels
+    let wheel_commands = WHEEL_ANGLES.map(|wheel_angle| {
+        let world_angle = wheel_angle + current_heading;
+        -sinf(world_angle) * x_command + cosf(world_angle) * y_command + rotation_command
+    });
 
     // Scale all wheels together when one saturates, so the direction is kept
-    let max = wheels.iter().fold(0.0f32, |m, w| m.max(w.abs()));
-    let scale = (PWM_PERIOD as f32 / max).min(1.0);
-    wheels.map(|w| roundf(w * scale) as i16)
+    let largest = wheel_commands
+        .iter()
+        .fold(0.0f32, |acc, command| acc.max(command.abs()));
+    let scale = (PWM_PERIOD as f32 / largest).min(1.0);
+    wheel_commands.map(|command| roundf(command * scale) as i16)
 }
 
 #[embassy_executor::task]
@@ -120,7 +128,7 @@ async fn run_motor_control(
     // holds where it is: after a warm restart the OTOS pose is kept and origin may be far away.
     let mut stop_pending = true;
     let mut otos_ok = true;
-    let mut integral = [0.0; 3];
+    let mut error_integral = [0.0; 3];
 
     let mut ticker = Ticker::every(CONTROL_PERIOD);
     let mut last_read_time = Instant::now();
@@ -134,7 +142,7 @@ async fn run_motor_control(
             match command {
                 MotionCommand::Stop => {
                     stop_pending = true;
-                    integral = [0.0; 3];
+                    error_integral = [0.0; 3];
                 }
                 MotionCommand::TargetPos { x, y, theta } => {
                     target_pos = RobotPos {
@@ -144,7 +152,7 @@ async fn run_motor_control(
                         ..Default::default()
                     };
                     stop_pending = false;
-                    integral = [0.0; 3];
+                    error_integral = [0.0; 3];
                 }
             }
         }
@@ -189,7 +197,7 @@ async fn run_motor_control(
         let commands = calculate_motor_commands(
             target_pos - current_pos,
             current_pos.theta,
-            &mut integral,
+            &mut error_integral,
             dt,
         );
         set_duties(commands.map(motor_duty));
