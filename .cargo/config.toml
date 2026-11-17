@@ -1,5 +1,11 @@
 [target.xtensa-esp32s3-none-elf]
 runner = "espflash flash --monitor --chip esp32s3"
+# Per target, not under [build], so the host simulator in sim/ doesn't inherit them
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+  # The ESP32-S3 runs code from RAM by design, so silence binutils' RWX segment warning
+  "-C", "link-arg=-Wl,--no-warn-rwx-segments",
+]
 
 # On-device tests need probe-rs to read embedded-test results; `cargo run` keeps espflash
 [alias]
@@ -14,12 +20,6 @@ hil = [
 ESP_LOG = "info"
 
 [build]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  # The ESP32-S3 runs code from RAM by design, so silence binutils' RWX segment warning
-  "-C", "link-arg=-Wl,--no-warn-rwx-segments",
-]
-
 target = "xtensa-esp32s3-none-elf"
 
 [unstable]
