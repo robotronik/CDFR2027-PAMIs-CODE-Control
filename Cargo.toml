@@ -15,18 +15,22 @@ test = false
 # On-device tests, run with `cargo hil` (see .cargo/config.toml)
 [[test]]
 name    = "math"
+path    = "tests/hil/math.rs"
 harness = false
 
 [[test]]
 name    = "protocol"
+path    = "tests/hil/protocol.rs"
 harness = false
 
 [[test]]
 name    = "otos"
+path    = "tests/hil/otos.rs"
 harness = false
 
 [[test]]
 name    = "board"
+path    = "tests/hil/board.rs"
 harness = false
 
 [dependencies]

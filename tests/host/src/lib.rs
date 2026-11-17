@@ -1,9 +1,9 @@
 // Firmware maths that is free of HAL types, tested on the host: `cargo test` in this folder.
-// On-device suites stay in ../tests and run with `cargo hil`.
+// On-device suites live in ../hil and run with `cargo hil`.
 
-#[path = "../../src/motor_control/control_law.rs"]
+#[path = "../../../src/motor_control/control_law.rs"]
 pub mod control_law;
-#[path = "../../src/motor_control/robot_state.rs"]
+#[path = "../../../src/motor_control/robot_state.rs"]
 pub mod robot_state;
 
 #[cfg(test)]

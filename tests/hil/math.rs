@@ -1,4 +1,4 @@
-// Maths tied to HAL modules, run on the board with `cargo hil` (HAL-free maths lives in host-tests/)
+// Maths tied to HAL modules, run on the board with `cargo hil` (HAL-free maths lives in tests/host/)
 
 #![no_std]
 #![no_main]
