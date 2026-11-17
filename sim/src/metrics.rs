@@ -1,5 +1,3 @@
-// Step response metrics over one recorded axis, pure functions
-
 pub struct AxisMetrics {
     pub step: f32,
     // None when the step is ~zero, or the response never gets there

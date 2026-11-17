@@ -1,5 +1,3 @@
-// Interactive tuning window: every edit re-runs the whole simulation, the result is then replayed
-
 use crate::control_law::{PWM_PERIOD, WHEEL_ANGLES};
 use crate::metrics::AxisMetrics;
 use crate::robot_state::{RobotPos, wrap_angle};
@@ -355,7 +353,6 @@ fn section_title(ui: &mut Ui, title: &str) {
     ui.label(RichText::new(title).size(15.0).strong());
 }
 
-// A titled box with a label | widget grid inside
 fn section(ui: &mut Ui, title: &str, add_rows: impl FnOnce(&mut Ui)) {
     egui::Frame::group(ui.style())
         .inner_margin(10.0)

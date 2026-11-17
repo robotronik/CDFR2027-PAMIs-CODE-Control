@@ -1,4 +1,3 @@
-// Drivetrain control loop on Core 1: owns the motors and the OTOS
 mod control_law;
 mod motor_commands;
 mod motors;

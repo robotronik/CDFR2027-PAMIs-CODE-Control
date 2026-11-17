@@ -1,4 +1,3 @@
-// Control law, free of HAL types so the host simulator in sim/ can build it
 use super::robot_state::{RobotPos, RobotVel};
 use core::f32::consts::PI;
 use embassy_time::Duration;
@@ -26,16 +25,15 @@ impl ControlParams {
         ki: 30.0,
         kd: 2.0,
         integral_limit: 10.0,
-        // Guess for a PAMI-sized base; also sets the heading deadzone (DEADZONE / wheel_distance rad)
         wheel_distance: 80.0,
         // JGA25-370 at 600 rpm on 58 mm wheels
         max_wheel_speed: 1822.0,
     };
 }
 
-// Integrate only within this error of the target (reset beyond), so long moves don't wind up, in mm
+// Integral reset beyond this error so long moves don't wind up, in mm
 pub const INTEGRAL_ZONE: f32 = 50.0;
-// Errors below this count as zero, so the motors don't jitter while holding, in mm
+// Smaller errors count as zero so the motors don't jitter while holding, in mm
 pub const DEADZONE: f32 = 1.0;
 
 // Motor i sits at this angle in the robot frame, CCW from the robot x axis (TODO: check order and spin sign)

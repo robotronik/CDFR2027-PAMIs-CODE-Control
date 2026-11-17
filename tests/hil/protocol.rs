@@ -67,7 +67,6 @@ mod tests {
         assert_eq!(crc8(b"123456789"), 0xF4);
     }
 
-    // Nop and Stop frames decode to their request, data bytes ignored
     #[test]
     fn decode_nop_and_stop() {
         assert_eq!(decode(&frame(0x00, 7, &[])), Ok(Request::Nop));
@@ -77,7 +76,6 @@ mod tests {
         );
     }
 
-    // TargetPos decodes three little-endian f32s as x, y, theta
     #[test]
     fn decode_target_pos() {
         assert_eq!(
@@ -125,7 +123,6 @@ mod tests {
         assert_eq!(decode(&f), Err(Status::BadMagic));
     }
 
-    // An opcode not in the table gives UnknownOpcode
     #[test]
     fn decode_rejects_unknown_opcode() {
         assert_eq!(decode(&frame(0x7F, 0, &[])), Err(Status::UnknownOpcode));
@@ -174,14 +171,12 @@ mod tests {
         assert_eq!(f[15], crc8(&f[..15]));
     }
 
-    // Nop is acknowledged and sends nothing to either task
     #[test]
     fn handle_nop_queues_nothing() {
         assert_eq!(handle(&frame(0x00, 3, &[]), &links()), Status::Ack);
         assert!(MOTION.is_empty() && SERVO.is_empty());
     }
 
-    // Stop and TargetPos are acknowledged and reach the motion inbox only
     #[test]
     fn handle_routes_motion_commands() {
         let links = links();
@@ -203,7 +198,6 @@ mod tests {
         assert!(SERVO.is_empty());
     }
 
-    // SetServo is acknowledged and reaches the servo inbox only
     #[test]
     fn handle_routes_servo_commands() {
         assert_eq!(handle(&frame(0x03, 6, &[2, 45]), &links()), Status::Ack);
@@ -217,7 +211,6 @@ mod tests {
         assert!(MOTION.is_empty());
     }
 
-    // An invalid frame is reported and nothing is queued
     #[test]
     fn handle_drops_invalid_requests() {
         let mut f = frame(0x01, 7, &[]);

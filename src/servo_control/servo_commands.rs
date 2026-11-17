@@ -1,5 +1,3 @@
-// ServoControl inbox. The channel instance lives in main.rs.
-
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{self, Channel};
 

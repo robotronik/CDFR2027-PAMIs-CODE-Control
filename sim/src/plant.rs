@@ -1,5 +1,3 @@
-// Robot model: three lagging motors and omni-wheel forward kinematics
-
 use crate::control_law::{PWM_PERIOD, WHEEL_ANGLES};
 use crate::robot_state::{RobotPos, RobotVel};
 
@@ -38,7 +36,6 @@ impl Plant {
         forward_kinematics(self.wheel_speeds, self.pos.theta, self.wheel_distance)
     }
 
-    // Explicit Euler over dt seconds
     // shortcut: wheels lag independently (no shared robot inertia), upgrade to a rigid-body model if tuning on hardware disagrees
     pub fn step(&mut self, commands: [i16; 3], dt: f32) {
         let vel = self.velocity();

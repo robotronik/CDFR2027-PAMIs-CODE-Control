@@ -1,5 +1,3 @@
-// BatteryTask: samples the battery voltage and publishes a low-battery flag for BrainComm
-
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::watch::{self, Watch};
@@ -23,7 +21,6 @@ pub type BatteryLowSender =
 pub type BatteryLowReceiver =
     watch::Receiver<'static, CriticalSectionRawMutex, bool, BATTERY_LOW_RECEIVERS>;
 
-// Hysteresis between LOW_MV and RECOVERED_MV
 pub fn battery_low(was_low: bool, battery_mv: u32) -> bool {
     battery_mv < if was_low { RECOVERED_MV } else { LOW_MV }
 }

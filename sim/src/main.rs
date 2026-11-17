@@ -1,5 +1,3 @@
-// Host simulator for the firmware control loop: runs the real control law against a plant model
-
 #[allow(dead_code)]
 #[path = "../../src/motor_control/control_law.rs"]
 mod control_law;
@@ -55,7 +53,6 @@ impl Default for SimConfig {
                 theta: core::f32::consts::FRAC_PI_2,
             },
             params: ControlParams::DEFAULT,
-            // JGA25-370 at 600 rpm on 58 mm wheels
             max_speed: 1822.0,
             tau: 0.3,
             deadband: 0.08,

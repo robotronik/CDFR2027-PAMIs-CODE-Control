@@ -1,5 +1,3 @@
-// MotorControl outbox (latest value only). The watch instance lives in main.rs.
-
 use core::f32::consts::{PI, TAU};
 use core::ops::Sub;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;

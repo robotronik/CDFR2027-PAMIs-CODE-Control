@@ -22,7 +22,6 @@ mod tests {
         );
     }
 
-    // Angles already in [-pi, pi) come back unchanged
     #[test]
     fn wrap_angle_keeps_in_range_values() {
         assert_close(wrap_angle(0.0), 0.0);
@@ -36,7 +35,6 @@ mod tests {
         assert_close(wrap_angle(-PI), -PI);
     }
 
-    // Extra full turns are removed, in both directions
     #[test]
     fn wrap_angle_removes_full_turns() {
         assert_close(wrap_angle(TAU + 0.5), 0.5);
@@ -62,7 +60,6 @@ mod tests {
         assert_close(d.theta, 6.0 - TAU);
     }
 
-    // Positive speed drives IN1, negative drives IN2, zero leaves both at 0
     #[test]
     fn motor_duty_drives_one_input_by_sign() {
         assert_eq!(motor_duty(0), (0, 0));

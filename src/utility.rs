@@ -1,4 +1,3 @@
-// Board housekeeping on Core 0: status LED, boot button, battery monitor
 mod battery;
 mod button;
 mod led;

@@ -1,4 +1,3 @@
-// Actuator servos
 mod servo_commands;
 mod servos;
 

@@ -25,16 +25,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     software_reset()
 }
 
-// App descriptor required by the esp-idf bootloader
 esp_bootloader_esp_idf::esp_app_desc!();
 
 static STACK_CORE_1: ConstStaticCell<Stack<8192>> = ConstStaticCell::new(Stack::new());
 static EXECUTOR_CORE_1: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
-// MOTION_COMMANDS: BrainComm (Core 0) -> MotorControl (Core 1)
-// ROBOT_POS:       MotorControl (Core 1) -> BrainComm (Core 0)
-// SERVO_COMMANDS:  BrainComm (Core 0) -> ServoControl (Core 0)
-// BATTERY_LOW:     Battery (Core 0) -> BrainComm (Core 0)
 static MOTION_COMMANDS: MotionCommandChannel = MotionCommandChannel::new();
 static ROBOT_POS: RobotPosWatch = RobotPosWatch::new();
 static SERVO_COMMANDS: ServoCommandChannel = ServoCommandChannel::new();
@@ -49,7 +44,6 @@ async fn main(spawner: Spawner) -> ! {
     esp_println::logger::init_logger_from_env();
     let board = Board::init();
 
-    // Core 1 runs only MotorControl, which owns the motors and the OTOS
     let motors = board.motors;
     let mcpwm0 = board.peripherals.mcpwm0;
     let (otos_pins, i2c0) = (board.i2c, board.peripherals.i2c0);
@@ -73,7 +67,6 @@ async fn main(spawner: Spawner) -> ! {
         },
     );
 
-    // Core 0 runs everything else
     LedTask::spawn(&spawner, board.status_led, 500);
     ButtonTask::spawn(&spawner, board.boot_button);
     BatteryTask::spawn(

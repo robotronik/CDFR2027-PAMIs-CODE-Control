@@ -36,7 +36,6 @@ struct SpiLink {
 }
 
 // One transaction: arm DMA with `reply`, raise handshake, wait for the Brain to clock it.
-// Sends Stop (brake and hold) once if no valid frame came for BRAIN_TIMEOUT.
 // shortcut: reply is frozen once armed, so pos can be stale if the Brain is slow; re-arm on a timer if that matters
 async fn exchange(
     link: SpiLink,
@@ -87,7 +86,6 @@ async fn exchange(
     )
 }
 
-// Decodes a request and forwards it to its task; returns the status for the next reply
 pub fn handle(frame: &Frame, links: &BrainCommLinks) -> Status {
     let request = match decode(frame) {
         Ok(request) => request,

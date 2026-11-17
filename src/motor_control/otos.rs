@@ -1,4 +1,3 @@
-// OTOS odometry sensor on I2C0, polled by MotorControl every tick.
 // Robotronik board running the SparkFun OTOS firmware, see
 // https://github.com/robotronik/Optical_Tracking_Odometry_Sensor (Firmware/SFE/Inc/registers.h)
 

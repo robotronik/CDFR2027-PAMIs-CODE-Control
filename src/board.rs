@@ -30,7 +30,6 @@ pub struct I2cPins {
     pub scl: AnyPin<'static>,
 }
 
-// Peripherals handed to the tasks that build their drivers
 pub struct BoardPeripherals {
     pub spi2: SPI2<'static>,
     pub dma0: DMA_CH0<'static>, // for SPI2

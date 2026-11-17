@@ -35,7 +35,6 @@ mod tests {
         Board::init()
     }
 
-    // All-zero registers decode to a zero pose
     #[test]
     fn decode_pose_zero() {
         let (pos, vel) = decode_pose(&[0; 12]);
@@ -57,7 +56,6 @@ mod tests {
         assert_close(vel.omega, -2000.0 * PI / 180.0);
     }
 
-    // Mixed-sign values land in the right fields with the right units
     #[test]
     fn decode_pose_field_order_and_sign() {
         // 1 m, -0.5 m, +90°, 1 m/s, -1 m/s, -180 °/s
@@ -77,7 +75,6 @@ mod tests {
         let mut otos = Otos::new(board.i2c, board.peripherals.i2c0);
         otos.init().await;
         let (pos, _) = otos.read_pos().await.expect("OTOS read failed");
-        // Robot still on the bench: tracking was just reset
         assert!(
             pos.x.abs() < 5.0 && pos.y.abs() < 5.0 && pos.theta.abs() < 0.02,
             "{:?}",
