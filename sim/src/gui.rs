@@ -41,7 +41,6 @@ pub fn run(config: SimConfig) -> eframe::Result {
 }
 
 struct App {
-    initial: SimConfig,
     config: SimConfig,
     samples: Vec<Sample>,
     metrics: [AxisMetrics; 3],
@@ -54,7 +53,6 @@ impl App {
     fn new(config: SimConfig) -> Self {
         let samples = simulate(&config);
         Self {
-            initial: config,
             config,
             metrics: axis_metrics(&config, &samples),
             samples,
@@ -117,9 +115,9 @@ impl App {
             changed |= pose(ui, "Target", &mut c.target);
             changed |= slider(ui, "Duration", "s", &mut c.duration, 0.5..=20.0, false);
         });
-        let reset = egui::Button::new("⟲  Reset to command-line values");
+        let reset = egui::Button::new("⟲  Reset to defaults");
         if ui.add_sized([ui.available_width(), 26.0], reset).clicked() {
-            *c = self.initial;
+            *c = SimConfig::default();
             changed = true;
         }
         changed
@@ -133,7 +131,7 @@ impl App {
             .spacing([10.0, 6.0])
             .show(ui, |ui| {
                 ui.strong("axis");
-                for (name, _) in COLUMNS {
+                for name in COLUMNS {
                     ui.strong(name);
                 }
                 ui.strong("verdict");
