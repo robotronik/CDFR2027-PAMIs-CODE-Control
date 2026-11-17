@@ -3,6 +3,7 @@
 #[allow(dead_code)]
 #[path = "../../src/motor_control/control_law.rs"]
 mod control_law;
+mod gui;
 mod metrics;
 mod plant;
 #[allow(dead_code)]
@@ -14,9 +15,9 @@ use control_law::{CONTROL_PERIOD, ControlLoop, ControlParams, PWM_PERIOD};
 use metrics::AxisMetrics;
 use owo_colors::{AnsiColors, OwoColorize};
 use plant::Plant;
-use robot_state::RobotPos;
-use std::io::{IsTerminal, Write};
-use std::process::{Command, ExitCode};
+use robot_state::{RobotPos, RobotVel};
+use std::io::IsTerminal;
+use std::process::ExitCode;
 
 // Colour thresholds, lower is better: (green up to, yellow up to), red above
 const RISE_TIME_S: (f32, f32) = (1.0, 2.0);
@@ -28,6 +29,17 @@ const SIGN_CHANGES: (f32, f32) = (2.0, 6.0);
 const SATURATION_PCT: (f32, f32) = (20.0, 50.0);
 
 const SUBSTEPS: u32 = 20;
+
+// Metrics table columns after the axis name, with their text width
+const COLUMNS: [(&str, usize); 6] = [
+    ("step", 11),
+    ("rise", 9),
+    ("settle", 9),
+    ("overshoot", 10),
+    ("ss error", 11),
+    ("osc", 5),
+];
+const AXES: [(&str, &str); 3] = [("x", "mm"), ("y", "mm"), ("θ", "°")];
 
 #[derive(Parser)]
 #[command(about = "Simulate the PAMI motor control loop against a plant model")]
@@ -65,9 +77,40 @@ struct Args {
     /// Simulated time (s)
     #[arg(long, default_value_t = 5.0)]
     duration: f32,
-    /// Plot the run with plot.py
+    /// Open the interactive tuning window
     #[arg(long)]
-    plot: bool,
+    gui: bool,
+}
+
+#[derive(Clone, Copy)]
+struct SimConfig {
+    start: RobotPos,
+    target: RobotPos,
+    params: ControlParams,
+    max_speed: f32,
+    tau: f32,
+    deadband: f32,
+    duration: f32,
+}
+
+impl From<&Args> for SimConfig {
+    fn from(args: &Args) -> Self {
+        Self {
+            start: args.start,
+            target: args.target,
+            params: ControlParams {
+                kp: args.kp,
+                ki: args.ki,
+                kd: args.kd,
+                integral_limit: args.integral_limit,
+                wheel_distance: args.wheel_distance,
+            },
+            max_speed: args.max_speed,
+            tau: args.tau,
+            deadband: args.deadband,
+            duration: args.duration,
+        }
+    }
 }
 
 fn parse_pose(s: &str) -> Result<RobotPos, String> {
@@ -84,37 +127,37 @@ fn parse_pose(s: &str) -> Result<RobotPos, String> {
 struct Sample {
     t: f32,
     pos: RobotPos,
+    vel: RobotVel,
     commands: [i16; 3],
 }
 
-fn simulate(args: &Args, params: ControlParams) -> Vec<Sample> {
+fn simulate(cfg: &SimConfig) -> Vec<Sample> {
     let mut control = ControlLoop::default();
-    control.params = params;
+    control.params = cfg.params;
     // Theta is kept unwrapped so the recorded series has no jumps
     let mut plant = Plant::new(
-        args.max_speed,
-        args.tau,
-        args.deadband,
-        params.wheel_distance,
-        args.start,
+        cfg.max_speed,
+        cfg.tau,
+        cfg.deadband,
+        cfg.params.wheel_distance,
+        cfg.start,
     );
     let period = CONTROL_PERIOD.as_micros() as f32 * 1e-6;
-    let ticks = (args.duration / period).round() as u32;
+    // At least one tick, the metrics need a sample
+    let ticks = ((cfg.duration / period).round() as u32).max(1);
     (0..ticks)
         .map(|tick| {
             let pos = plant.pos;
-            let commands = control.calculate_motor_commands(
-                args.target - pos,
-                plant.velocity(),
-                pos.theta,
-                CONTROL_PERIOD,
-            );
+            let vel = plant.velocity();
+            let commands =
+                control.calculate_motor_commands(cfg.target - pos, vel, pos.theta, CONTROL_PERIOD);
             for _ in 0..SUBSTEPS {
                 plant.step(commands, period / SUBSTEPS as f32);
             }
             Sample {
                 t: tick as f32 * period,
                 pos,
+                vel,
                 commands,
             }
         })
@@ -205,48 +248,82 @@ fn verdict_text(grade: Grade) -> &'static str {
     }
 }
 
-fn metric_row(p: &Painter, name: &str, unit: &str, m: &AxisMetrics) -> (String, Grade) {
+// Cells in COLUMNS order with their grade, and the axis verdict
+fn metric_cells(unit: &str, m: &AxisMetrics) -> ([(String, Option<Grade>); 6], Grade) {
     let seconds = |t: Option<f32>, thresholds| match t {
         Some(t) => (format!("{t:.2} s"), Some(Grade::of(t, thresholds))),
         None => ("never".to_string(), Some(Grade::Bad)),
     };
     let dash = || ("—".to_string(), None);
-    let (rise, rise_grade) = if m.overshoot_pct.is_some() {
+    let rise = if m.overshoot_pct.is_some() {
         seconds(m.rise_time, RISE_TIME_S)
     } else {
         dash()
     };
-    let (overshoot, overshoot_grade) = match m.overshoot_pct {
+    let overshoot = match m.overshoot_pct {
         Some(o) => (format!("{o:.1} %"), Some(Grade::of(o, OVERSHOOT_PCT))),
         None => dash(),
     };
-    let (settle, settle_grade) = seconds(m.settling_time, SETTLING_TIME_S);
-    let ss_grade = Grade::of(m.steady_state_error / m.band, STEADY_STATE_BANDS);
-    let verdict_grade = verdict(m);
-    let row = format!(
-        "  {:<4}{}{}{}{}{}{}  {}",
-        name,
-        p.cell(&format!("{:.1} {unit}", m.step), 11, None),
-        p.cell(&rise, 9, rise_grade),
-        p.cell(&settle, 9, settle_grade),
-        p.cell(&overshoot, 10, overshoot_grade),
-        p.cell(
-            &format!("{:.2} {unit}", m.steady_state_error),
-            11,
-            Some(ss_grade)
+    let cells = [
+        (format!("{:.1} {unit}", m.step), None),
+        rise,
+        seconds(m.settling_time, SETTLING_TIME_S),
+        overshoot,
+        (
+            format!("{:.2} {unit}", m.steady_state_error),
+            Some(Grade::of(m.steady_state_error / m.band, STEADY_STATE_BANDS)),
         ),
-        p.cell(
-            &m.sign_changes.to_string(),
-            5,
-            Some(Grade::of(m.sign_changes as f32, SIGN_CHANGES))
+        (
+            m.sign_changes.to_string(),
+            Some(Grade::of(m.sign_changes as f32, SIGN_CHANGES)),
         ),
-        p.paint(verdict_text(verdict_grade), verdict_grade.color()),
+    ];
+    (cells, verdict(m))
+}
+
+fn metric_row(p: &Painter, name: &str, unit: &str, m: &AxisMetrics) -> (String, Grade) {
+    let (cells, verdict_grade) = metric_cells(unit, m);
+    let mut row = format!("  {name:<4}");
+    for ((text, grade), (_, width)) in cells.iter().zip(COLUMNS) {
+        row += &p.cell(text, width, *grade);
+    }
+    row += &format!(
+        "  {}",
+        p.paint(verdict_text(verdict_grade), verdict_grade.color())
     );
     (row, verdict_grade)
 }
 
-fn report(p: &Painter, args: &Args, params: &ControlParams, samples: &[Sample]) {
-    let (s, t) = (args.start, args.target);
+// Unwrapped theta target, so the metrics follow the shortest rotation the controller takes
+fn axis_metrics(cfg: &SimConfig, samples: &[Sample]) -> [AxisMetrics; 3] {
+    let (s, t) = (cfg.start, cfg.target);
+    let times: Vec<f32> = samples.iter().map(|s| s.t).collect();
+    let series = |f: fn(&RobotPos) -> f32| samples.iter().map(|s| f(&s.pos)).collect::<Vec<_>>();
+    let theta_target = s.theta + robot_state::wrap_angle(t.theta - s.theta);
+    [
+        metrics::analyze(&times, &series(|p| p.x), s.x, t.x, 2.0),
+        metrics::analyze(&times, &series(|p| p.y), s.y, t.y, 2.0),
+        metrics::analyze(
+            &times,
+            &series(|p| p.theta.to_degrees()),
+            s.theta.to_degrees(),
+            theta_target.to_degrees(),
+            1.0,
+        ),
+    ]
+}
+
+fn saturation_pct(samples: &[Sample]) -> f32 {
+    let saturated = samples
+        .iter()
+        .filter(|s| s.commands.iter().any(|c| c.unsigned_abs() >= PWM_PERIOD))
+        .count();
+    100.0 * saturated as f32 / samples.len() as f32
+}
+
+fn report(p: &Painter, cfg: &SimConfig, samples: &[Sample]) {
+    let (s, t) = (cfg.start, cfg.target);
+    let params = &cfg.params;
     println!("{}", p.bold("PAMI control loop simulation"));
     println!(
         "  {}  kp {}  ki {}  kd {}  integral limit {} mm.s  wheel distance {} mm",
@@ -260,9 +337,9 @@ fn report(p: &Painter, args: &Args, params: &ControlParams, samples: &[Sample]) 
     println!(
         "  {}       max speed {} mm/s  tau {} s  deadband {} %  dt {} ms / {} substeps",
         p.dim("plant"),
-        args.max_speed,
-        args.tau,
-        args.deadband * 100.0,
+        cfg.max_speed,
+        cfg.tau,
+        cfg.deadband * 100.0,
         CONTROL_PERIOD.as_millis(),
         SUBSTEPS
     );
@@ -275,59 +352,30 @@ fn report(p: &Painter, args: &Args, params: &ControlParams, samples: &[Sample]) 
         t.x,
         t.y,
         t.theta.to_degrees(),
-        args.duration
+        cfg.duration
     );
     println!();
-
-    let times: Vec<f32> = samples.iter().map(|s| s.t).collect();
-    let series = |f: fn(&RobotPos) -> f32| samples.iter().map(|s| f(&s.pos)).collect::<Vec<_>>();
-    let theta_deg: Vec<f32> = series(|p| p.theta).iter().map(|v| v.to_degrees()).collect();
-    // Unwrapped target, so the metrics follow the shortest rotation the controller takes
-    let theta_target = s.theta + robot_state::wrap_angle(t.theta - s.theta);
-    let axes = [
-        (
-            "x",
-            "mm",
-            metrics::analyze(&times, &series(|p| p.x), s.x, t.x, 2.0),
-        ),
-        (
-            "y",
-            "mm",
-            metrics::analyze(&times, &series(|p| p.y), s.y, t.y, 2.0),
-        ),
-        (
-            "θ",
-            "°",
-            metrics::analyze(
-                &times,
-                &theta_deg,
-                s.theta.to_degrees(),
-                theta_target.to_degrees(),
-                1.0,
-            ),
-        ),
-    ];
 
     println!(
         "{}",
         p.bold(&format!(
-            "  {:<4}{:>11}{:>9}{:>9}{:>10}{:>11}{:>5}  {}",
-            "axis", "step", "rise", "settle", "overshoot", "ss error", "osc", "verdict"
+            "  {:<4}{}  verdict",
+            "axis",
+            COLUMNS
+                .iter()
+                .map(|(name, width)| format!("{name:>width$}"))
+                .collect::<String>()
         ))
     );
     let mut overall = Grade::Good;
-    for (name, unit, m) in &axes {
+    for ((name, unit), m) in AXES.iter().zip(&axis_metrics(cfg, samples)) {
         let (row, grade) = metric_row(p, name, unit, m);
         println!("{row}");
         overall = overall.max(grade);
     }
     println!();
 
-    let saturated = samples
-        .iter()
-        .filter(|s| s.commands.iter().any(|c| c.unsigned_abs() >= PWM_PERIOD))
-        .count();
-    let saturation_pct = 100.0 * saturated as f32 / samples.len() as f32;
+    let saturation_pct = saturation_pct(samples);
     let peak = samples
         .iter()
         .flat_map(|s| s.commands)
@@ -361,56 +409,15 @@ fn report(p: &Painter, args: &Args, params: &ControlParams, samples: &[Sample]) 
     );
 }
 
-fn write_csv(path: &std::path::Path, target: RobotPos, samples: &[Sample]) -> std::io::Result<()> {
-    let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
-    writeln!(
-        out,
-        "t,x,y,theta,target_x,target_y,target_theta,cmd0,cmd1,cmd2"
-    )?;
-    for s in samples {
-        let [c0, c1, c2] = s.commands;
-        writeln!(
-            out,
-            "{},{},{},{},{},{},{},{c0},{c1},{c2}",
-            s.t, s.pos.x, s.pos.y, s.pos.theta, target.x, target.y, target.theta
-        )?;
-    }
-    out.flush()
-}
-
-fn plot(p: &Painter, target: RobotPos, samples: &[Sample]) -> Result<(), String> {
-    let csv = std::env::temp_dir().join("pami-sim.csv");
-    write_csv(&csv, target, samples).map_err(|e| format!("cannot write {}: {e}", csv.display()))?;
-    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/plot.py");
-    println!("  {}       {}", p.dim("plot"), csv.display());
-    let status = Command::new("python3")
-        .arg(script)
-        .arg(&csv)
-        .status()
-        .map_err(|e| format!("cannot start python3: {e}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("plot.py failed ({status})"))
-    }
-}
-
 fn main() -> ExitCode {
     let args = Args::parse();
     let painter = Painter {
         enabled: std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
     };
-    let params = ControlParams {
-        kp: args.kp,
-        ki: args.ki,
-        kd: args.kd,
-        integral_limit: args.integral_limit,
-        wheel_distance: args.wheel_distance,
-    };
-    let samples = simulate(&args, params);
-    report(&painter, &args, &params, &samples);
-    if args.plot
-        && let Err(e) = plot(&painter, args.target, &samples)
+    let config = SimConfig::from(&args);
+    report(&painter, &config, &simulate(&config));
+    if args.gui
+        && let Err(e) = gui::run(config)
     {
         eprintln!("{}", painter.paint(&format!("error: {e}"), AnsiColors::Red));
         return ExitCode::FAILURE;

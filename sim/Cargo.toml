@@ -11,3 +11,5 @@ libm         = "0.2"
 
 clap       = { version = "4", features = ["derive"] }
 owo-colors = "4"
+eframe = "0.37.0"
+egui_plot = "0.38.0"
