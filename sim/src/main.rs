@@ -85,23 +85,24 @@ fn simulate(cfg: &SimConfig) -> Vec<Sample> {
     let period = CONTROL_PERIOD.as_micros() as f32 * 1e-6;
     // At least one tick, the metrics need a sample
     let ticks = ((cfg.duration / period).round() as u32).max(1);
-    (0..ticks)
-        .map(|tick| {
-            let pos = plant.pos;
-            let vel = plant.velocity();
-            let commands =
-                control.calculate_motor_commands(cfg.target - pos, vel, pos.theta, CONTROL_PERIOD);
-            for _ in 0..SUBSTEPS {
-                plant.step(commands, period / SUBSTEPS as f32);
-            }
-            Sample {
-                t: tick as f32 * period,
-                pos,
-                vel,
+    let dt = period / SUBSTEPS as f32;
+    // One sample per plant step, so slow replays stay smooth between control ticks
+    let mut samples = Vec::with_capacity((ticks * SUBSTEPS) as usize);
+    for tick in 0..ticks {
+        let (pos, vel) = (plant.pos, plant.velocity());
+        let commands =
+            control.calculate_motor_commands(cfg.target - pos, vel, pos.theta, CONTROL_PERIOD);
+        for sub in 0..SUBSTEPS {
+            samples.push(Sample {
+                t: (tick * SUBSTEPS + sub) as f32 * dt,
+                pos: plant.pos,
+                vel: plant.velocity(),
                 commands,
-            }
-        })
-        .collect()
+            });
+            plant.step(commands, dt);
+        }
+    }
+    samples
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

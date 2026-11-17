@@ -1,6 +1,6 @@
 // Interactive tuning window: every edit re-runs the whole simulation, the result is then replayed
 
-use crate::control_law::{CONTROL_PERIOD, PWM_PERIOD, WHEEL_ANGLES};
+use crate::control_law::{PWM_PERIOD, WHEEL_ANGLES};
 use crate::metrics::AxisMetrics;
 use crate::robot_state::{RobotPos, wrap_angle};
 use crate::{
@@ -70,8 +70,9 @@ impl App {
     }
 
     fn index(&self) -> usize {
-        let period = CONTROL_PERIOD.as_micros() as f32 * 1e-6;
-        ((self.t / period) as usize).min(self.samples.len() - 1)
+        self.samples
+            .partition_point(|s| s.t <= self.t)
+            .saturating_sub(1)
     }
 
     fn settings(&mut self, ui: &mut Ui) -> bool {
@@ -169,6 +170,12 @@ impl App {
             for speed in PLAYBACK_SPEEDS {
                 ui.selectable_value(&mut self.speed, speed, format!("{speed}x"));
             }
+            let custom = DragValue::new(&mut self.speed)
+                .range(0.01..=10.0)
+                .speed(0.01)
+                .suffix("x");
+            ui.add(custom)
+                .on_hover_text("Custom speed: drag or double-click to type");
         });
         // Leave room for the slider's value box
         ui.spacing_mut().slider_width = ui.available_width() - 80.0;
