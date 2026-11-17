@@ -79,8 +79,8 @@ impl App {
         let c = &mut self.config;
         let mut changed = false;
         section(ui, "Controller", |ui| {
-            changed |= slider(ui, "Kp", "", &mut c.params.kp, 0.0..=100.0, true);
-            changed |= slider(ui, "Ki", "", &mut c.params.ki, 0.0..=100.0, true);
+            changed |= slider(ui, "Kp", "/s", &mut c.params.kp, 0.0..=100.0, true);
+            changed |= slider(ui, "Ki", "/s²", &mut c.params.ki, 0.0..=100.0, true);
             changed |= slider(ui, "Kd", "", &mut c.params.kd, 0.0..=10.0, true);
             changed |= slider(
                 ui,
@@ -97,6 +97,14 @@ impl App {
                 &mut c.params.wheel_distance,
                 0.1..=200.0,
                 true,
+            );
+            changed |= slider(
+                ui,
+                "Max wheel speed",
+                "mm/s",
+                &mut c.params.max_wheel_speed,
+                100.0..=5000.0,
+                false,
             );
         });
         section(ui, "Plant", |ui| {

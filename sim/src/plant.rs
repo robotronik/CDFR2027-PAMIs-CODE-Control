@@ -84,6 +84,8 @@ mod tests {
             kp: 1.0,
             ki: 0.0,
             kd: 0.0,
+            // Duty then equals wheel speed in mm/s
+            max_wheel_speed: PWM_PERIOD as f32,
             ..ControlParams::DEFAULT
         };
         let error = RobotPos {

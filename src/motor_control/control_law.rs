@@ -7,7 +7,7 @@ use libm::{cosf, roundf, sinf};
 // PID per world axis (x, y, theta), then projected onto the three omni wheels
 #[derive(Clone, Copy, Debug)]
 pub struct ControlParams {
-    // Gains map mm of wheel travel to duty
+    // Gains give wheel speed in mm/s: kp per mm, ki per mm.s, kd per mm/s
     pub kp: f32,
     pub ki: f32,
     pub kd: f32,
@@ -15,18 +15,28 @@ pub struct ControlParams {
     pub integral_limit: f32,
     // Robot centre to wheel contact, in mm
     pub wheel_distance: f32,
+    // Wheel surface speed at full duty, in mm/s
+    pub max_wheel_speed: f32,
 }
 
 impl ControlParams {
-    // TODO: calibrate the gains and measure wheel_distance
+    // Gains tuned in sim/ against a guessed plant. TODO: calibrate on the robot, measure wheel_distance and max_wheel_speed
     pub const DEFAULT: Self = Self {
-        kp: 1.0,
-        ki: 0.1,
-        kd: 0.1,
-        integral_limit: 100.0,
-        wheel_distance: 1.0,
+        kp: 20.0,
+        ki: 30.0,
+        kd: 2.0,
+        integral_limit: 10.0,
+        // Guess for a PAMI-sized base; also sets the heading deadzone (DEADZONE / wheel_distance rad)
+        wheel_distance: 80.0,
+        // JGA25-370 at 600 rpm on 58 mm wheels
+        max_wheel_speed: 1822.0,
     };
 }
+
+// Integrate only within this error of the target (reset beyond), so long moves don't wind up, in mm
+pub const INTEGRAL_ZONE: f32 = 50.0;
+// Errors below this count as zero, so the motors don't jitter while holding, in mm
+pub const DEADZONE: f32 = 1.0;
 
 // Motor i sits at this angle in the robot frame, CCW from the robot x axis (TODO: check order and spin sign)
 pub const WHEEL_ANGLES: [f32; 3] = [0.0, 2.0 * PI / 3.0, 4.0 * PI / 3.0];
@@ -67,15 +77,21 @@ impl ControlLoop {
             kd,
             integral_limit,
             wheel_distance,
+            max_wheel_speed,
         } = self.params;
 
         // Theta scaled to wheel travel so one set of gains fits all three axes
-        let position_error = [error.x, error.y, error.theta * wheel_distance];
+        let position_error = [error.x, error.y, error.theta * wheel_distance]
+            .map(|e| if e.abs() < DEADZONE { 0.0 } else { e });
         let velocity_error = [-velocity.vx, -velocity.vy, -velocity.omega * wheel_distance];
         let mut axis_command = [0.0; 3];
         for axis in 0..3 {
-            self.error_integral[axis] = (self.error_integral[axis] + position_error[axis] * dt_s)
-                .clamp(-integral_limit, integral_limit);
+            self.error_integral[axis] = if position_error[axis].abs() < INTEGRAL_ZONE {
+                (self.error_integral[axis] + position_error[axis] * dt_s)
+                    .clamp(-integral_limit, integral_limit)
+            } else {
+                0.0
+            };
             axis_command[axis] = kp * position_error[axis]
                 + ki * self.error_integral[axis]
                 + kd * velocity_error[axis];
@@ -85,7 +101,9 @@ impl ControlLoop {
         // Each wheel pushes along the tangent of its world angle; rotation adds equally to all wheels
         let wheel_commands = WHEEL_ANGLES.map(|wheel_angle| {
             let world_angle = wheel_angle + current_heading;
-            -sinf(world_angle) * x_command + cosf(world_angle) * y_command + rotation_command
+            let wheel_speed =
+                -sinf(world_angle) * x_command + cosf(world_angle) * y_command + rotation_command;
+            wheel_speed / max_wheel_speed * PWM_PERIOD as f32
         });
 
         // Scale all wheels together when one saturates, so the direction is kept
@@ -97,7 +115,7 @@ impl ControlLoop {
     }
 }
 
-pub const CONTROL_PERIOD: Duration = Duration::from_millis(20);
+pub const CONTROL_PERIOD: Duration = Duration::from_millis(10);
 
 // Timer counts 0..PWM_PERIOD-1, so a timestamp of PWM_PERIOD is 100 % duty
 pub const PWM_PERIOD: u16 = 1000;

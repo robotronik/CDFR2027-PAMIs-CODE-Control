@@ -8,7 +8,7 @@ pub mod robot_state;
 
 #[cfg(test)]
 mod tests {
-    use crate::control_law::{ControlLoop, motor_duty};
+    use crate::control_law::{ControlLoop, ControlParams, motor_duty};
     use crate::robot_state::{RobotPos, RobotVel, wrap_angle};
     use core::f32::consts::{PI, TAU};
     use embassy_time::Duration;
@@ -77,11 +77,37 @@ mod tests {
         assert_eq!(motor_duty(i16::MIN), (0, 1000));
     }
 
+    // Round gains, and max wheel speed = PWM_PERIOD so duty equals wheel speed in mm/s
+    fn unit_loop() -> ControlLoop {
+        let mut control = ControlLoop::default();
+        control.params = ControlParams {
+            kp: 1.0,
+            ki: 0.1,
+            kd: 0.1,
+            integral_limit: 100.0,
+            max_wheel_speed: 1000.0,
+            ..ControlParams::DEFAULT
+        };
+        control
+    }
+
+    fn y_error_command(control: &mut ControlLoop, y: f32, dt: Duration) -> [i16; 3] {
+        control.calculate_motor_commands(
+            RobotPos {
+                y,
+                ..Default::default()
+            },
+            RobotVel::default(),
+            0.0,
+            dt,
+        )
+    }
+
     // Zero dt and velocity leave only P (KP = 1): wheels at 0/120/240° split a +y error 1 : -1/2 : -1/2
     #[test]
     fn motor_commands_project_error_on_wheels() {
         let cmd = |x, y, theta, heading| {
-            ControlLoop::default().calculate_motor_commands(
+            unit_loop().calculate_motor_commands(
                 RobotPos { x, y, theta },
                 RobotVel::default(),
                 heading,
@@ -98,19 +124,42 @@ mod tests {
         assert_eq!(cmd(0.0, 10000.0, 0.0, 0.0), [1000, -500, -500]);
     }
 
+    // Wheel speed maps to duty through max_wheel_speed: 100 mm/s out of 2000 is 5 % duty
+    #[test]
+    fn motor_commands_scale_by_max_wheel_speed() {
+        let mut control = unit_loop();
+        control.params.max_wheel_speed = 2000.0;
+        let cmd = y_error_command(&mut control, 100.0, Duration::from_ticks(0));
+        assert_eq!(cmd, [50, -25, -25]);
+    }
+
     // I term is capped: a 10 mm y error for 20 s integrates to 200, clamped to 100, so P 10 + I 0.1 * 100 = 20
     #[test]
     fn motor_commands_clamp_integral() {
-        let cmd = ControlLoop::default().calculate_motor_commands(
-            RobotPos {
-                y: 10.0,
-                ..Default::default()
-            },
-            RobotVel::default(),
-            0.0,
-            Duration::from_secs(20),
-        );
+        let cmd = y_error_command(&mut unit_loop(), 10.0, Duration::from_secs(20));
         assert_eq!(cmd, [20, -10, -10]);
+    }
+
+    // Outside INTEGRAL_ZONE the integral is reset: a 100 mm error for 20 s gives P alone
+    #[test]
+    fn motor_commands_skip_integral_far_from_target() {
+        let mut control = unit_loop();
+        y_error_command(&mut control, 10.0, Duration::from_secs(20));
+        let cmd = y_error_command(&mut control, 100.0, Duration::from_secs(20));
+        assert_eq!(cmd, [100, -50, -50]);
+    }
+
+    // Inside DEADZONE the error counts as zero and the integral is held, not grown
+    #[test]
+    fn motor_commands_ignore_tiny_errors() {
+        assert_eq!(
+            y_error_command(&mut unit_loop(), 0.5, Duration::from_secs(20)),
+            [0, 0, 0]
+        );
+        let mut control = unit_loop();
+        y_error_command(&mut control, 10.0, Duration::from_secs(2));
+        let cmd = y_error_command(&mut control, 0.5, Duration::from_secs(20));
+        assert_eq!(cmd, [2, -1, -1]);
     }
 
     // D term damps: moving +y at 1000 mm/s with no error (KD = 0.1) pushes back like a -100 mm y error
@@ -120,7 +169,7 @@ mod tests {
             vy: 1000.0,
             ..Default::default()
         };
-        let cmd = ControlLoop::default().calculate_motor_commands(
+        let cmd = unit_loop().calculate_motor_commands(
             RobotPos::default(),
             velocity,
             0.0,
