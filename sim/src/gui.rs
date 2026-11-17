@@ -13,10 +13,12 @@ use std::f64::consts::TAU;
 use std::ops::RangeInclusive;
 
 const ROBOT_RADIUS: f64 = 60.0;
-// A full-duty command draws an 80 mm arrow
-const COMMAND_ARROW_MM: f64 = 80.0 / PWM_PERIOD as f64;
-// The velocity arrow shows where the robot will be in 0.1 s
-const VELOCITY_ARROW_S: f64 = 0.1;
+// A full-duty command draws a 200 mm arrow
+const COMMAND_ARROW_MM: f64 = 200.0 / PWM_PERIOD as f64;
+// The velocity arrow shows where the robot will be in 0.3 s
+const VELOCITY_ARROW_S: f64 = 0.3;
+// Arrow head size, in screen points
+const ARROW_TIP: f32 = 14.0;
 const WHEEL_COLORS: [Color32; 3] = [
     Color32::from_rgb(80, 160, 255),
     Color32::from_rgb(90, 210, 120),
@@ -77,39 +79,46 @@ impl App {
     fn settings(&mut self, ui: &mut Ui) -> bool {
         let c = &mut self.config;
         let mut changed = false;
-        ui.heading("Controller");
-        changed |= slider(ui, "kp", &mut c.params.kp, 0.0..=100.0, true);
-        changed |= slider(ui, "ki", &mut c.params.ki, 0.0..=100.0, true);
-        changed |= slider(ui, "kd", &mut c.params.kd, 0.0..=10.0, true);
-        changed |= slider(
-            ui,
-            "integral limit (mm.s)",
-            &mut c.params.integral_limit,
-            0.0..=10000.0,
-            true,
-        );
-        changed |= slider(
-            ui,
-            "wheel distance (mm)",
-            &mut c.params.wheel_distance,
-            0.1..=200.0,
-            true,
-        );
-        ui.heading("Plant");
-        changed |= slider(
-            ui,
-            "max speed (mm/s)",
-            &mut c.max_speed,
-            100.0..=5000.0,
-            false,
-        );
-        changed |= slider(ui, "tau (s)", &mut c.tau, 0.01..=2.0, true);
-        changed |= slider(ui, "deadband (0..1)", &mut c.deadband, 0.0..=0.5, false);
-        ui.heading("Run");
-        changed |= pose(ui, "start ", &mut c.start);
-        changed |= pose(ui, "target", &mut c.target);
-        changed |= slider(ui, "duration (s)", &mut c.duration, 0.5..=20.0, false);
-        if ui.button("Reset").clicked() {
+        section(ui, "Controller", |ui| {
+            changed |= slider(ui, "Kp", "", &mut c.params.kp, 0.0..=100.0, true);
+            changed |= slider(ui, "Ki", "", &mut c.params.ki, 0.0..=100.0, true);
+            changed |= slider(ui, "Kd", "", &mut c.params.kd, 0.0..=10.0, true);
+            changed |= slider(
+                ui,
+                "Integral limit",
+                "mm·s",
+                &mut c.params.integral_limit,
+                0.0..=10000.0,
+                true,
+            );
+            changed |= slider(
+                ui,
+                "Wheel distance",
+                "mm",
+                &mut c.params.wheel_distance,
+                0.1..=200.0,
+                true,
+            );
+        });
+        section(ui, "Plant", |ui| {
+            changed |= slider(
+                ui,
+                "Max speed",
+                "mm/s",
+                &mut c.max_speed,
+                100.0..=5000.0,
+                false,
+            );
+            changed |= slider(ui, "Tau", "s", &mut c.tau, 0.01..=2.0, true);
+            changed |= slider(ui, "Deadband", "0..1", &mut c.deadband, 0.0..=0.5, false);
+        });
+        section(ui, "Run", |ui| {
+            changed |= pose(ui, "Start", &mut c.start);
+            changed |= pose(ui, "Target", &mut c.target);
+            changed |= slider(ui, "Duration", "s", &mut c.duration, 0.5..=20.0, false);
+        });
+        let reset = egui::Button::new("⟲  Reset to command-line values");
+        if ui.add_sized([ui.available_width(), 26.0], reset).clicked() {
             *c = self.initial;
             changed = true;
         }
@@ -118,24 +127,28 @@ impl App {
 
     fn metrics_table(&self, ui: &mut Ui) {
         let mut overall = Grade::Good;
-        egui::Grid::new("metrics").striped(true).show(ui, |ui| {
-            ui.strong("axis");
-            for (name, _) in COLUMNS {
-                ui.strong(name);
-            }
-            ui.strong("verdict");
-            ui.end_row();
-            for ((name, unit), m) in AXES.iter().zip(&self.metrics) {
-                let (cells, verdict) = metric_cells(unit, m);
-                ui.label(*name);
-                for (text, grade) in cells {
-                    ui.label(graded(text, grade));
+        section_title(ui, "Performance");
+        egui::Grid::new("metrics")
+            .striped(true)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                ui.strong("axis");
+                for (name, _) in COLUMNS {
+                    ui.strong(name);
                 }
-                ui.label(graded(verdict_text(verdict).into(), Some(verdict)));
-                overall = overall.max(verdict);
+                ui.strong("verdict");
                 ui.end_row();
-            }
-        });
+                for ((name, unit), m) in AXES.iter().zip(&self.metrics) {
+                    let (cells, verdict) = metric_cells(unit, m);
+                    ui.label(*name);
+                    for (text, grade) in cells {
+                        ui.label(graded(text, grade));
+                    }
+                    ui.label(graded(verdict_text(verdict).into(), Some(verdict)));
+                    overall = overall.max(verdict);
+                    ui.end_row();
+                }
+            });
         let saturation = saturation_pct(&self.samples);
         ui.label(graded(
             format!("saturated {saturation:.0} % of ticks"),
@@ -205,7 +218,11 @@ impl App {
                     tx + ROBOT_RADIUS * ttheta.cos(),
                     ty + ROBOT_RADIUS * ttheta.sin(),
                 ];
-                plot.arrows(Arrows::new("target", vec![[tx, ty]], vec![heading]).color(TARGET));
+                plot.arrows(
+                    Arrows::new("target", vec![[tx, ty]], vec![heading])
+                        .tip_length(ARROW_TIP)
+                        .color(TARGET),
+                );
                 let circle = (0..=48)
                     .map(|i| at(i as f64 / 48.0 * TAU))
                     .collect::<Vec<_>>();
@@ -227,14 +244,20 @@ impl App {
                             .radius(5.0)
                             .color(WHEEL_COLORS[i]),
                     );
-                    plot.arrows(Arrows::new(name, vec![wheel], vec![tip]).color(color));
+                    plot.arrows(
+                        Arrows::new(name, vec![wheel], vec![tip])
+                            .tip_length(ARROW_TIP)
+                            .color(color),
+                    );
                 }
                 let velocity = [
                     x + s.vel.vx as f64 * VELOCITY_ARROW_S,
                     y + s.vel.vy as f64 * VELOCITY_ARROW_S,
                 ];
                 plot.arrows(
-                    Arrows::new("velocity", vec![[x, y]], vec![velocity]).color(Color32::WHITE),
+                    Arrows::new("velocity", vec![[x, y]], vec![velocity])
+                        .tip_length(ARROW_TIP)
+                        .color(Color32::WHITE),
                 );
             });
     }
@@ -288,11 +311,14 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         egui::Panel::left("settings").show(ui, |ui| {
-            if self.settings(ui) {
-                self.rerun();
-            }
-            ui.separator();
-            self.metrics_table(ui);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.add_space(6.0);
+                if self.settings(ui) {
+                    self.rerun();
+                }
+                ui.add_space(10.0);
+                self.metrics_table(ui);
+            });
         });
         if self.playing {
             self.t += ui.input(|i| i.stable_dt) * self.speed;
@@ -312,36 +338,65 @@ impl eframe::App for App {
     }
 }
 
+fn section_title(ui: &mut Ui, title: &str) {
+    ui.label(RichText::new(title).size(15.0).strong());
+}
+
+// A titled box with a label | widget grid inside
+fn section(ui: &mut Ui, title: &str, add_rows: impl FnOnce(&mut Ui)) {
+    egui::Frame::group(ui.style())
+        .inner_margin(10.0)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            section_title(ui, title);
+            ui.spacing_mut().slider_width = 200.0;
+            egui::Grid::new(title)
+                .num_columns(2)
+                .spacing([16.0, 8.0])
+                .show(ui, add_rows);
+        });
+    ui.add_space(6.0);
+}
+
 fn slider(
     ui: &mut Ui,
     label: &str,
+    unit: &str,
     value: &mut f32,
     range: RangeInclusive<f32>,
     log: bool,
 ) -> bool {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        ui.weak(unit);
+    });
     // Never clamp, so a CLI value outside the range is kept as is
     let slider = Slider::new(value, range)
         .logarithmic(log)
-        .clamping(SliderClamping::Never)
-        .text(label);
-    ui.add(slider).changed()
+        .clamping(SliderClamping::Never);
+    let changed = ui.add(slider).changed();
+    ui.end_row();
+    changed
 }
 
 // θ is edited in degrees, stored in radians
 fn pose(ui: &mut Ui, label: &str, pos: &mut RobotPos) -> bool {
-    ui.horizontal(|ui| {
-        ui.monospace(label);
-        let mut degrees = pos.theta.to_degrees();
-        // Non-short-circuit `|` so every widget is drawn
-        let changed = ui.add(DragValue::new(&mut pos.x).suffix(" mm")).changed()
-            | ui.add(DragValue::new(&mut pos.y).suffix(" mm")).changed()
-            | ui.add(DragValue::new(&mut degrees).suffix("°")).changed();
-        if changed {
-            pos.theta = degrees.to_radians();
-        }
-        changed
-    })
-    .inner
+    ui.label(label);
+    let changed = ui
+        .horizontal(|ui| {
+            let mut degrees = pos.theta.to_degrees();
+            // Non-short-circuit `|` so every widget is drawn
+            let changed = ui.add(DragValue::new(&mut pos.x).suffix(" mm")).changed()
+                | ui.add(DragValue::new(&mut pos.y).suffix(" mm")).changed()
+                | ui.add(DragValue::new(&mut degrees).suffix("°")).changed();
+            if changed {
+                pos.theta = degrees.to_radians();
+            }
+            changed
+        })
+        .inner;
+    ui.end_row();
+    changed
 }
 
 fn graded(text: String, grade: Option<Grade>) -> RichText {
