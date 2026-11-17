@@ -47,7 +47,11 @@ cargo build --release
 
 ### Tests
 
-Tests run on the board itself ([embedded-test](https://github.com/probe-rs/embedded-test)) and live in `tests/`. With the board on USB:
+The HAL-free maths (control law, angles, duty) is tested on your PC:
+```bash
+cd tests/host && cargo test
+```
+Everything else runs on the board itself ([embedded-test](https://github.com/probe-rs/embedded-test)) and lives in `tests/hil/`. With the board on USB:
 ```bash
 cargo install probe-rs-tools --locked   # once
 cargo hil
@@ -58,6 +62,15 @@ cargo hil --test math --test protocol --test board
 ```
 A probe-rs reset looks like a panic restart to the firmware, which then keeps the OTOS pose
 (see `Board::restarted_after_panic`). Power-cycle the board if `otos_init_then_read_near_origin` fails.
+
+### Simulator
+
+Tune the control law on your PC: a window with sliders for the gains and the motor model, a replay of the robot
+moving to its target and graded performance metrics. It runs the real firmware control law against a motor model
+(see the [Simulator wiki page](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/Simulator)).
+```bash
+cd sim && cargo run --release
+```
 
 ### Flashing to the ESP32-S3
 
