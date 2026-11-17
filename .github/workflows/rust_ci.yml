@@ -35,3 +35,7 @@ jobs:
         run: cargo test --no-run
       - name: Clippy
         run: cargo clippy --lib --bins --tests -- -D warnings
+      # HAL-free maths, on the host (stable toolchain pinned in host-tests/)
+      - name: Host tests
+        working-directory: host-tests
+        run: cargo test

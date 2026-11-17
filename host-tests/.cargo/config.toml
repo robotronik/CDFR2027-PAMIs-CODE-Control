@@ -1,0 +1,3 @@
+[build]
+# shortcut: host triple hardcoded, make it per-machine if someone builds off x86_64 Linux
+target = "x86_64-unknown-linux-gnu"

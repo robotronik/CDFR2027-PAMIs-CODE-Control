@@ -1,0 +1,10 @@
+[package]
+edition = "2024"
+name    = "pami-host-tests"
+version = "0.1.0"
+
+# Same versions as the firmware, needed by the shared files
+[dependencies]
+embassy-sync = "0.8.0"
+embassy-time = "0.5.0"
+libm         = "0.2"
